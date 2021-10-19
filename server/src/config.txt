@@ -1,0 +1,3 @@
+port = 7666
+dumpfile = dumpfile.txt
+logfile = logfile.txt
