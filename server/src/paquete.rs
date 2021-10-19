@@ -1,5 +1,5 @@
-use crate::{realizar_conexion, realizar_publicacion, Cliente};
 use std::io::{Read, Write};
+use crate::server::{Cliente, realizar_conexion};
 
 const MQTT_VERSION: u8 = 4;
 const MQTT_NAME: [u8; 6] = [0x00, 0x04, 0x4D, 0x51, 0x54, 0x54];
@@ -100,6 +100,10 @@ fn enviar_resultado_conexion(cliente : &mut Cliente, codigo_resultado : u8, sess
 
     cliente.conexion.write(&buffer_envio).unwrap();
     println!("Envié el connac");
+}
+
+fn realizar_publicacion(buffer_paquete: Vec<u8>) -> Result<(), String> {
+    Err("error".to_owned())
 }
 
 #[cfg(test)]

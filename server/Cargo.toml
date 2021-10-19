@@ -11,11 +11,3 @@ rand = "0.8.0"
 [[bin]]
 name = "server"
 path = "src/main.rs"
-
-[[bin]]
-name = "paquete"
-path = "src/paquete.rs"
-
-[[bin]]
-name = "configuracion"
-path = "src/configuracion.rs"
