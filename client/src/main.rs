@@ -78,14 +78,20 @@ fn client_run(address: &str) -> std::io::Result<()> {
     let a = thread::spawn(move || {
         loop {
             let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
-            if stream.read_exact(&mut num_buffer).is_ok() {
-                let tipo_paquete = num_buffer[0].into();
-                leer_paquete(&mut stream_lectura, tipo_paquete, num_buffer[1]).unwrap();
+
+            match stream.read_exact(&mut num_buffer) {
+                Ok(_) => {
+                    let tipo_paquete = num_buffer[0].into();
+                    leer_paquete(&mut stream_lectura, tipo_paquete, num_buffer[1]).unwrap();
+                }
+                Err(_) => {
+                    println!("No se");
+                }
             }
         }
     });
     //ENVIA COSAS al sv
-    a.join();
+    a.join().unwrap();
     /*
     let mut num_buffer = [0u8; 4];
     socket.read_exact(&mut num_buffer).unwrap();

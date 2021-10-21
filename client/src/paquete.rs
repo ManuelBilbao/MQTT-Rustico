@@ -7,32 +7,32 @@ use std::net::TcpStream;
 const MQTT_VERSION: u8 = 4;
 
 pub enum Paquetes {
-    CONNECT,
-    CONNACK,
-    PUBLISH,
-    PUBACK,
-    PUBREL,
-    PUBCOMP,
-    SUBSCRIBE,
-    SUBACK,
-    UNSUBSCRIBE,
-    UNSUBACK,
-    PINGREQ,
-    PINGRESP,
-    DISCONNECT,
+    Connect,
+    ConnAck,
+    Publish,
+    PubAck,
+    PubRel,
+    PubComp,
+    Subscribe,
+    SubAck,
+    Unsubscribe,
+    UnsubAck,
+    PinReq,
+    PingResp,
+    Disconnect,
 }
 
 impl From<u8> for Paquetes {
     fn from(code: u8) -> Self {
         match code & 0xF0 {
-            0x10 => Paquetes::CONNECT,
-            0x20 => Paquetes::CONNACK,
-            0x30 => Paquetes::PUBLISH,
-            0x80 => Paquetes::SUBSCRIBE,
-            0xA0 => Paquetes::UNSUBSCRIBE,
-            0xC0 => Paquetes::PINGREQ,
-            0xE0 => Paquetes::DISCONNECT,
-            _ => Paquetes::DISCONNECT,
+            0x10 => Paquetes::Connect,
+            0x20 => Paquetes::ConnAck,
+            0x30 => Paquetes::Publish,
+            0x80 => Paquetes::Subscribe,
+            0xA0 => Paquetes::Unsubscribe,
+            0xC0 => Paquetes::PinReq,
+            0xE0 => Paquetes::Disconnect,
+            _ => Paquetes::Disconnect,
         }
     }
 }
@@ -40,13 +40,13 @@ impl From<u8> for Paquetes {
 impl From<Paquetes> for u8 {
     fn from(paquete: Paquetes) -> Self {
         match paquete {
-            Paquetes::CONNECT => 0x10,
-            Paquetes::CONNACK => 0x20,
-            Paquetes::PUBLISH => 0x30,
-            Paquetes::SUBSCRIBE => 0x82,
-            Paquetes::UNSUBSCRIBE => 0xA2,
-            Paquetes::PINGREQ => 0xC0,
-            Paquetes::DISCONNECT => 0xE0,
+            Paquetes::Connect => 0x10,
+            Paquetes::ConnAck => 0x20,
+            Paquetes::Publish => 0x30,
+            Paquetes::Subscribe => 0x82,
+            Paquetes::Unsubscribe => 0xA2,
+            Paquetes::PinReq => 0xC0,
+            Paquetes::Disconnect => 0xE0,
             _ => 0xE0,
         }
     }
@@ -60,13 +60,15 @@ pub fn leer_paquete(
     let mut buffer_paquete: Vec<u8> = vec![0; tamaño_lectura as usize];
     stream.read_exact(&mut buffer_paquete)?;
     match tipo_paquete {
-        Paquetes::CONNACK => {
+        Paquetes::ConnAck => {
             leer_connack(buffer_paquete);
         }
-        Paquetes::SUBACK => {
+        Paquetes::SubAck => {
             // Manejar SUBACK
         }
-        _ => { // Manejar
+        _ => {
+            // Manejar
+            println!("No se que paqeute es");
         }
     }
     Ok(())
@@ -105,7 +107,7 @@ pub fn enviar_paquete_conexion(
 
     //let mut indice:usize = 14;
     let client_id = informacion_usuario.id.as_bytes();
-    for byte in client_id {
+    for byte in client_id.iter() {
         buffer_envio.push(*byte);
     }
     if flags.will_flag {
@@ -113,14 +115,14 @@ pub fn enviar_paquete_conexion(
         buffer_envio.push(informacion_usuario.longitud_will_topic as u8);
         let will_topic = informacion_usuario.will_topic.unwrap();
         let will_topic_bytes = will_topic.as_bytes();
-        for byte in will_topic_bytes {
+        for byte in will_topic_bytes.iter() {
             buffer_envio.push(*byte);
         }
         buffer_envio.push((informacion_usuario.longitud_will_message >> 8) as u8);
         buffer_envio.push(informacion_usuario.longitud_will_message as u8);
         let will_message = informacion_usuario.will_message.unwrap();
         let will_message_bytes = will_message.as_bytes();
-        for byte in will_message_bytes {
+        for byte in will_message_bytes.iter() {
             buffer_envio.push(*byte);
         }
     }
@@ -129,7 +131,7 @@ pub fn enviar_paquete_conexion(
         buffer_envio.push(informacion_usuario.longitud_username as u8);
         let usuario = informacion_usuario.username.unwrap();
         let usuario_bytes = usuario.as_bytes();
-        for byte in usuario_bytes {
+        for byte in usuario_bytes.iter() {
             buffer_envio.push(*byte);
         }
     }
@@ -138,14 +140,14 @@ pub fn enviar_paquete_conexion(
         buffer_envio.push(informacion_usuario.longitud_password as u8);
         let password = informacion_usuario.password.unwrap();
         let password_bytes = password.as_bytes();
-        for byte in password_bytes {
+        for byte in password_bytes.iter() {
             buffer_envio.push(*byte);
         }
     }
     stream.write_all(&buffer_envio).unwrap();
 }
 
-pub fn enviar_paquete_suscribe(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn _enviar_paquete_suscribe(stream: &mut TcpStream, topics: Vec<String>) {
     let mut buffer_envio: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
@@ -156,12 +158,12 @@ pub fn enviar_paquete_suscribe(stream: &mut TcpStream, topics: Vec<String>) {
     }
 
     buffer_envio.insert(0, buffer_envio.len() as u8); // Remaining length
-    buffer_envio.insert(0, Paquetes::SUBSCRIBE.into());
+    buffer_envio.insert(0, Paquetes::Subscribe.into());
 
     stream.write_all(&buffer_envio).unwrap();
 }
 
-pub fn enviar_paquete_unsuscribe(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn _enviar_paquete_unsuscribe(stream: &mut TcpStream, topics: Vec<String>) {
     let mut buffer_envio: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
@@ -171,7 +173,7 @@ pub fn enviar_paquete_unsuscribe(stream: &mut TcpStream, topics: Vec<String>) {
     }
 
     buffer_envio.insert(0, buffer_envio.len() as u8); // Remaining length
-    buffer_envio.insert(0, Paquetes::UNSUBSCRIBE.into());
+    buffer_envio.insert(0, Paquetes::Unsubscribe.into());
 
     stream.write_all(&buffer_envio).unwrap();
 }
