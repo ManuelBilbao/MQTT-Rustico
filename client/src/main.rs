@@ -1,10 +1,8 @@
 use crate::paquete::{enviar_paquete_conexion, leer_paquete};
 use std::env::args;
 use std::io::Read;
-use std::io::Write;
 use std::net::TcpStream;
 use std::thread;
-use std::time::Duration;
 
 mod paquete;
 
@@ -80,12 +78,9 @@ fn client_run(address: &str) -> std::io::Result<()> {
     let a = thread::spawn(move || {
         loop {
             let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
-            match stream.read_exact(&mut num_buffer) {
-                Ok(_) => {
-                    let tipo_paquete = num_buffer[0].into();
-                    leer_paquete(&mut stream_lectura, tipo_paquete, num_buffer[1]).unwrap();
-                }
-                Err(_) => {}
+            if stream.read_exact(&mut num_buffer).is_ok() {
+                let tipo_paquete = num_buffer[0].into();
+                leer_paquete(&mut stream_lectura, tipo_paquete, num_buffer[1]).unwrap();
             }
         }
     });
@@ -103,20 +98,20 @@ fn client_run(address: &str) -> std::io::Result<()> {
 fn crear_byte_mediante_flags(flags: &FlagsConexion, will_qos: &u8) -> u8 {
     let mut byte_flags: u8 = 0;
     if flags.username {
-        byte_flags = byte_flags & 0x80;
+        byte_flags &= 0x80;
     }
     if flags.password {
-        byte_flags = byte_flags & 0x40;
+        byte_flags &= 0x40;
     }
     if flags.will_retain {
-        byte_flags = byte_flags & 0x20;
+        byte_flags &= 0x20;
     }
-    byte_flags = byte_flags & ((will_qos << 3) & 0x18);
+    byte_flags &= (will_qos << 3) & 0x18;
     if flags.will_flag {
-        byte_flags = byte_flags & 0x04;
+        byte_flags &= 0x04;
     }
     if flags.clean_session {
-        byte_flags = byte_flags & 0x02;
+        byte_flags &= 0x02;
     }
     byte_flags
 }
