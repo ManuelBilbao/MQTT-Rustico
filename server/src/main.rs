@@ -1,9 +1,10 @@
-use std::env::args;
 use crate::server::Server;
+use std::env::args;
 
-mod configuracion;
-mod paquete;
 mod cliente;
+mod configuracion;
+mod coordinator;
+mod paquete;
 mod server;
 
 static SERVER_ARGS: usize = 2;
@@ -14,7 +15,7 @@ fn main() -> Result<(), ()> {
         println!("Cantidad de argumentos inválido");
         return Err(());
     }
-    let mut server = Server::new(&argv[1]);
+    let server = Server::new(&argv[1]);
     server.run().unwrap();
     Ok(())
 }

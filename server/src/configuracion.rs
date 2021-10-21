@@ -14,12 +14,12 @@ pub struct Configuracion {
 
 impl Configuracion {
     pub fn new() -> Self {
-        return Configuracion {
+        Configuracion {
             port: DEFAULT_PORT,
             dumpfile: DEFAULT_DUMPFILE.to_string(),
             logfile: DEFAULT_LOGFILE.to_string(),
-            ip: DEFAULT_IP.to_string()
-        };
+            ip: DEFAULT_IP.to_string(),
+        }
     }
 
     pub fn set_config(&mut self, file_path: &str) -> Result<bool, String> {
@@ -57,19 +57,25 @@ impl Configuracion {
     fn set_all_params(&mut self, map: HashMap<String, String>) -> Option<String> {
         if let Some(logfile_) = map.get("logfile") {
             self.logfile = logfile_.to_string();
-            println!("Configuración del nombre del archivo de logs cargada : {}", self.logfile);
+            println!(
+                "Configuración del nombre del archivo de logs cargada : {}",
+                self.logfile
+            );
         }
         if let Some(port_) = map.get("port") {
             self.port = port_.parse().unwrap();
         }
         if let Some(dumpfile_) = map.get("dumpfile") {
             self.dumpfile = dumpfile_.to_string();
-            println!("Configuración del archivo de almacenamiento cargada : {}", self.dumpfile);
+            println!(
+                "Configuración del archivo de almacenamiento cargada : {}",
+                self.dumpfile
+            );
         }
         None
     }
 
     pub fn get_address(&self) -> String {
-        format!("{}:{}",self.ip, self.port)
+        format!("{}:{}", self.ip, self.port)
     }
 }

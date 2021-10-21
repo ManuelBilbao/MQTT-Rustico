@@ -1,91 +1,164 @@
-use std::io::Read;
-use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, mpsc, Mutex};
-use std::sync::mpsc::{Receiver, Sender};
-use std::thread;
+use crate::cliente::Client;
 use crate::configuracion::Configuracion;
-use crate::paquete::{get_tipo, leer_paquete, verificar_nombre_protocolo, verificar_version_protocolo};
+use crate::paquete::{
+    leer_paquete, verificar_nombre_protocolo, verificar_version_protocolo, Paquetes,
+};
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
 
 const CONEXION_IDENTIFICADOR_RECHAZADO: u8 = 2;
-const CONEXION_PROTOCOLO_RECHAZADO: u8 = 1;
+const _CONEXION_PROTOCOLO_RECHAZADO: u8 = 1;
 const CONEXION_SERVIDOR_INCORRECTO: u8 = 1;
-const CONEXION_EXITOSA: u8 = 0;
+const _CONEXION_EXITOSA: u8 = 0;
 
 pub struct Server {
     //
-        cfg : Configuracion
-    //
+    cfg: Configuracion,
+    _clientes: Vec<Client>, //
+}
+
+pub struct FlagsCliente<'a> {
+    id: Option<String>,
+    pub conexion: &'a mut TcpStream,
+    username: Option<String>,
+    password: Option<String>,
+    will_topic: Option<String>,
+    will_message: Option<String>,
+    will_qos: u8,
+    will_retained: bool,
+    keep_alive: u16,
+}
+
+pub struct Paquete {
+    _client_id: usize,
+    _packet_type: Paquetes,
+    _bytes: Vec<u8>,
 }
 
 impl Server {
     pub fn new(file_path: &str) -> Self {
         let mut config = Configuracion::new();
-        let aux = config.set_config(file_path); //Manejar
-        return Server {
-            cfg: config
-        };
+        let _aux = config.set_config(file_path); //Manejar
+        Server {
+            cfg: config,
+            _clientes: Vec::new(),
+        }
     }
 
     pub fn run(&self) -> std::io::Result<()> {
         let address = self.cfg.get_address();
-        println!("Ip: {}", &address);
-        let (server_sender, cliente_receiver) : (Sender<String>, Receiver<String>) = mpsc::channel();
-        let (cliente_sender, server_receiver) : (Sender<String>, Receiver<String>) = mpsc::channel();
-        let cliente_receiver = Arc::new(Mutex::new(cliente_receiver));
-        let cliente_sender = Arc::new(Mutex::new(cliente_sender));
-        thread::spawn( move || {
-            loop{
-                let leido = server_receiver.recv().unwrap();
-                server_sender.send(leido).expect("Error en el sender");
-            }
-        });
+        println!("IP: {}", &address);
+        let clientes: Vec<Client> = Vec::new();
+        let lock_clientes = Arc::new(Mutex::new(clientes));
+        let lock_clientes_para_handler = lock_clientes.clone();
+        let (sender_de_los_clientes, receiver_del_coordinador): (
+            Sender<Paquete>,
+            Receiver<Paquete>,
+        ) = mpsc::channel();
+        let sender_de_los_clientes = Arc::new(Mutex::new(sender_de_los_clientes));
+        thread::Builder::new()
+            .name("Coordinator".into())
+            .spawn(move || loop {
+                match receiver_del_coordinador.recv() {
+                    Ok(_val) => {
+                        if lock_clientes.lock().unwrap().is_empty() {
+                            println!("Esta vacio");
+                        }
+                    }
+                    Err(_e) => {
+                        println!("error");
+                    }
+                }
+            })?;
+
+        // Thread Listener
+        Server::wait_new_clients(
+            &address,
+            lock_clientes_para_handler,
+            &sender_de_los_clientes,
+        )
+    }
+
+    fn wait_new_clients(
+        address: &str,
+        lock_clientes_para_handler: Arc<Mutex<Vec<Client>>>,
+        sender_de_los_clientes: &Arc<Mutex<Sender<Paquete>>>,
+    ) -> std::io::Result<()> {
+        let mut indice: usize = 0;
         loop {
             let listener = TcpListener::bind(&address)?;
             let connection = listener.accept()?;
-            let mut client_stream : TcpStream = connection.0;
-            let nuevo_receiver = Arc::clone(&cliente_receiver);
-            let nuevo_sender = Arc::clone(&cliente_sender);
-            thread::spawn(move || {
-                handle_client(&mut client_stream,nuevo_receiver, nuevo_sender);
-            });
+            let mut client_stream: TcpStream = connection.0;
+            let (sender_del_coordinador, receiver_del_cliente): (
+                Sender<Vec<u8>>,
+                Receiver<Vec<u8>>,
+            ) = mpsc::channel();
+            let sender_del_cliente = Arc::clone(sender_de_los_clientes);
+            let cliente: Client = Client::new(indice, sender_del_coordinador);
+            lock_clientes_para_handler.lock().unwrap().push(cliente);
+            thread::Builder::new()
+                .name("Client-Listener".into())
+                .spawn(move || {
+                    handle_client(
+                        indice,
+                        &mut client_stream,
+                        sender_del_cliente,
+                        receiver_del_cliente,
+                    );
+                })
+                .unwrap();
+            indice += 1;
         }
     }
 }
 
 ///////////////////////a partir de aca puede ser que lo movamos o renombremos (para mi va aca pero renombrado)
 
-pub fn handle_client(stream: &mut TcpStream, receiver: Arc<Mutex<Receiver<String>>>, sender: Arc<Mutex<Sender<String>>>) {
+pub fn handle_client(
+    _indice: usize,
+    stream: &mut TcpStream,
+    _sender_del_cliente: Arc<Mutex<Sender<Paquete>>>,
+    receiver_del_cliente: Receiver<Vec<u8>>,
+) {
     let mut stream_clonado = stream.try_clone().unwrap();
-    let mut cliente_actual = Cliente{
+    let mut cliente_actual = FlagsCliente {
         id: None,
-        conexion: &mut stream_clonado,
-        sender: sender,
+        conexion: stream,
         username: None,
         password: None,
         will_topic: None,
         will_message: None,
         will_qos: 0,
         will_retained: false,
-        keep_alive: 1000
+        keep_alive: 1000,
     };
-    /*let lock = Arc::new(Mutex::new(&cliente_actual));
-    let lock_para_thread = Arc::clone(&lock); //lock.clone();
-    thread::spawn( move || {
-        loop{
-            let leido = receiver.lock().unwrap().recv().unwrap();
-            let mut estructura = lock_para_thread.lock().unwrap();
-            //LEER SUSCRIPCIONES
-        }
-    });*/
+
+    thread::Builder::new()
+        .name("Client-Communicator".into())
+        .spawn(move || loop {
+            match receiver_del_cliente.recv() {
+                Ok(val) => {
+                    stream_clonado.write_all(&val).unwrap();
+                }
+                Err(_er) => {}
+            }
+        })
+        .unwrap();
+
     loop {
         let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
-        match stream.read_exact(&mut num_buffer) {
+        match cliente_actual.conexion.read_exact(&mut num_buffer) {
             Ok(_) => {
                 //Acordarse de leerlo  como BE, let mensaje = u32::from_be_bytes(num_buffer);
-                let tipo_paquete = get_tipo(num_buffer[0]);
+                let tipo_paquete = num_buffer[0].into();
                 leer_paquete(&mut cliente_actual, tipo_paquete, num_buffer[1]).unwrap();
-            },
+            }
             Err(_) => {
+                println!("Error");
+                break;
             }
         }
     }
@@ -94,11 +167,11 @@ pub fn handle_client(stream: &mut TcpStream, receiver: Arc<Mutex<Receiver<String
 fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
     match std::str::from_utf8(bytes) {
         Ok(str) => Ok(str.to_owned()),
-        Err(_) => Err(CONEXION_SERVIDOR_INCORRECTO)
+        Err(_) => Err(CONEXION_SERVIDOR_INCORRECTO),
     }
 }
 
-pub fn realizar_conexion(cliente : &mut Cliente, buffer_paquete: Vec<u8>) -> Result<u8, u8> {
+pub fn realizar_conexion(cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>) -> Result<u8, u8> {
     verificar_nombre_protocolo(&buffer_paquete)?;
     verificar_version_protocolo(&buffer_paquete[6])?;
 
@@ -109,50 +182,63 @@ pub fn realizar_conexion(cliente : &mut Cliente, buffer_paquete: Vec<u8>) -> Res
     let flag_will_flag = buffer_paquete[7] & 0x04 == 0x04;
     let flag_clean_session = buffer_paquete[7] & 0x02 == 0x02;
 
-    let keep_alive :u16 = ((buffer_paquete[8] as u16) << 8) + buffer_paquete[9] as u16;
+    let keep_alive: u16 = ((buffer_paquete[8] as u16) << 8) + buffer_paquete[9] as u16;
 
-    let tamanio_client_id:usize = ((buffer_paquete[10] as usize) << 8) + buffer_paquete[11] as usize;
+    let tamanio_client_id: usize =
+        ((buffer_paquete[10] as usize) << 8) + buffer_paquete[11] as usize;
 
-    let client_id = Some(bytes2string(&buffer_paquete[12..12+tamanio_client_id])?); // En UTF-8
+    let client_id = Some(bytes2string(&buffer_paquete[12..12 + tamanio_client_id])?); // En UTF-8
 
-    let mut indice: usize = (12+tamanio_client_id) as usize;
+    let mut indice: usize = (12 + tamanio_client_id) as usize;
 
     // Atajar si tamanio_x = 0
     let mut will_topic = None;
     let mut will_message = None;
     if flag_will_flag {
-        let tamanio_will_topic: usize = ((buffer_paquete[indice] as usize) << 8) + buffer_paquete[(indice+1)] as usize;
-        indice += 2 as usize;
-        will_topic = Some(bytes2string(&buffer_paquete[indice..(indice+tamanio_will_topic)])?);
+        let tamanio_will_topic: usize =
+            ((buffer_paquete[indice] as usize) << 8) + buffer_paquete[(indice + 1)] as usize;
+        indice += 2_usize;
+        will_topic = Some(bytes2string(
+            &buffer_paquete[indice..(indice + tamanio_will_topic)],
+        )?);
         indice += tamanio_will_topic;
 
-        let tamanio_will_message: usize = ((buffer_paquete[indice] as usize) << 8) + buffer_paquete[(indice+1) as usize] as usize;
-        indice += 2 as usize;
-        will_message = Some(bytes2string(&buffer_paquete[indice..(indice+tamanio_will_message)])?);
+        let tamanio_will_message: usize = ((buffer_paquete[indice] as usize) << 8)
+            + buffer_paquete[(indice + 1) as usize] as usize;
+        indice += 2_usize;
+        will_message = Some(bytes2string(
+            &buffer_paquete[indice..(indice + tamanio_will_message)],
+        )?);
         indice += tamanio_will_message;
     }
 
-    let mut username : Option<String> = None;
+    let mut username: Option<String> = None;
     if flag_username {
-        let tamanio_username: usize = ((buffer_paquete[indice] as usize) << 8) + buffer_paquete[(indice+1) as usize] as usize;
-        indice += 2 as usize;
-        username = Some(bytes2string(&buffer_paquete[indice..(indice+tamanio_username)])?);
+        let tamanio_username: usize = ((buffer_paquete[indice] as usize) << 8)
+            + buffer_paquete[(indice + 1) as usize] as usize;
+        indice += 2_usize;
+        username = Some(bytes2string(
+            &buffer_paquete[indice..(indice + tamanio_username)],
+        )?);
         indice += tamanio_username;
     }
 
-    let mut password : Option<String> = None;
+    let mut password: Option<String> = None;
     if flag_password {
-        let tamanio_password:usize = ((buffer_paquete[indice] as usize) << 8) + buffer_paquete[(indice+1) as usize] as usize;
-        indice += 2 as usize;
-        password = Some(bytes2string(&buffer_paquete[indice..(indice+tamanio_password)])?);
+        let tamanio_password: usize = ((buffer_paquete[indice] as usize) << 8)
+            + buffer_paquete[(indice + 1) as usize] as usize;
+        indice += 2_usize;
+        password = Some(bytes2string(
+            &buffer_paquete[indice..(indice + tamanio_password)],
+        )?);
     }
 
     //PROCESAR
-    if client_id == None && !flag_clean_session{
+    if client_id == None && !flag_clean_session {
         return Err(CONEXION_IDENTIFICADOR_RECHAZADO);
     }
 
-    if flag_will_retain && flag_will_qos == 2{
+    if flag_will_retain && flag_will_qos == 2 {
         //
     }
 
