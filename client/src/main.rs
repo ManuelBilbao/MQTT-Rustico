@@ -1,16 +1,16 @@
+use crate::paquete::{enviar_paquete_conexion, leer_paquete};
 use std::env::args;
+use std::io::Read;
 use std::io::Write;
-use std::io::{Read};
 use std::net::TcpStream;
 use std::thread;
 use std::time::Duration;
-use crate::paquete::{enviar_paquete_conexion, leer_paquete, get_tipo};
 
 mod paquete;
 
 static CLIENT_ARGS: usize = 3;
 
-pub struct FlagsConexion{
+pub struct FlagsConexion {
     username: bool,
     password: bool,
     will_retain: bool,
@@ -18,7 +18,7 @@ pub struct FlagsConexion{
     clean_session: bool,
 }
 
- pub struct InformacionUsuario{
+pub struct InformacionUsuario {
     longitud_id: u16,
     id: String,
     longitud_username: u16,
@@ -60,7 +60,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
         will_flag: false,
         clean_session: false,
     };
-    let informacion_usuario = InformacionUsuario{
+    let informacion_usuario = InformacionUsuario {
         longitud_id: 1,
         id: "2".to_owned(),
         longitud_username: 0,
@@ -77,14 +77,14 @@ fn client_run(address: &str) -> std::io::Result<()> {
     enviar_paquete_conexion(&mut stream, flags, informacion_usuario);
     //thread spawn leer del servidor
     let mut stream_lectura = stream.try_clone().unwrap();
-    let a = thread::spawn( move || {
+    let a = thread::spawn(move || {
         loop {
             let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
             match stream.read_exact(&mut num_buffer) {
                 Ok(_) => {
-                    let tipo_paquete = get_tipo(num_buffer[0]);
+                    let tipo_paquete = num_buffer[0].into();
                     leer_paquete(&mut stream_lectura, tipo_paquete, num_buffer[1]).unwrap();
-                },
+                }
                 Err(_) => {}
             }
         }
@@ -100,8 +100,8 @@ fn client_run(address: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn crear_byte_mediante_flags(flags: &FlagsConexion, will_qos : &u8) -> u8{
-    let mut byte_flags:u8 = 0;
+fn crear_byte_mediante_flags(flags: &FlagsConexion, will_qos: &u8) -> u8 {
+    let mut byte_flags: u8 = 0;
     if flags.username {
         byte_flags = byte_flags & 0x80;
     }
@@ -121,17 +121,22 @@ fn crear_byte_mediante_flags(flags: &FlagsConexion, will_qos : &u8) -> u8{
     byte_flags
 }
 
-fn calcular_longitud_conexion(flags : &FlagsConexion, informacion_usuario: &InformacionUsuario) -> u8{
+fn calcular_longitud_conexion(
+    flags: &FlagsConexion,
+    informacion_usuario: &InformacionUsuario,
+) -> u8 {
     let mut longitud: u8 = 12;
     longitud += informacion_usuario.longitud_id as u8;
-    if flags.username{
+    if flags.username {
         longitud += (informacion_usuario.longitud_username + 2) as u8;
     }
-    if flags.password{
+    if flags.password {
         longitud += (informacion_usuario.longitud_password + 2) as u8;
     }
-    if flags.will_flag{
-        longitud += (informacion_usuario.longitud_will_topic + informacion_usuario.longitud_will_message + 4) as u8;
+    if flags.will_flag {
+        longitud += (informacion_usuario.longitud_will_topic
+            + informacion_usuario.longitud_will_message
+            + 4) as u8;
     }
     longitud
 }
