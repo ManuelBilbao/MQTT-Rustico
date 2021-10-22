@@ -121,7 +121,7 @@ impl Server {
     }
 
     fn enviar_subback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete, vector_con_qos: Vec<u8>) {
-        let mut buffer: Vec<u8> = !vec[0x90, vector_con_qos.len() as u8];
+        let mut buffer: Vec<u8> = vec![0x90, vector_con_qos.len() as u8];
         for bytes in vector_con_qos {
             buffer.push(bytes);
         }

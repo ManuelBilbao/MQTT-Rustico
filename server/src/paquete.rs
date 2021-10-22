@@ -102,7 +102,7 @@ pub fn leer_paquete(
     Ok(())
 }
 
-fn realizar_suscripcion(cliente: &mut FlagsCliente, mut buffer_paquete: Vec<u8>) -> Result<u8, u8> {
+fn realizar_suscripcion(cliente: &mut FlagsCliente, mut buffer_paquete: Vec<u8>) -> Result<(), ()> {
     let _paquet_identifier = ((buffer_paquete[0] as usize) << 8) + buffer_paquete[1] as usize;
     buffer_paquete.remove(1);
     buffer_paquete.remove(0);
@@ -114,12 +114,12 @@ fn realizar_suscripcion(cliente: &mut FlagsCliente, mut buffer_paquete: Vec<u8>)
     let sender = cliente.sender.lock();
     match sender {
         Ok(sender_ok) => {
-            match sender_ok.send(paquete_a_servidor) {
-                Ok(_) => { Ok(0) },
-                Err(_) => { Err(0) }
+            return match sender_ok.send(paquete_a_servidor) {
+                Ok(_) => { Ok(()) },
+                Err(_) => { Err(()) }
             };
         },
-        Err(_) => { Err(0) }
+        Err(_) => {Err(())}
     }
 }
 
