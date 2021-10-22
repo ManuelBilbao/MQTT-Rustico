@@ -19,7 +19,7 @@ impl Client {
         self.topics.push(topic);
     }
 
-    pub fn _unsubscribe(&mut self, topic: String) {
+    pub fn unsubscribe(&mut self, topic: String) {
         if let Some(indice) = self.topics.iter().position(|r| *r == topic) {
             self.topics.remove(indice);
         }

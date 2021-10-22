@@ -72,7 +72,8 @@ impl Server {
                                 Server::enviar_subback(&lock_clientes, paquete, vector_con_qos)
                             },
                             Paquetes::Unsubscribe => {
-                              println!("FUncionalidad aun no implementada");
+                                Server::procesar_unsubscribe(&lock_clientes, &paquete);
+                                Server::enviar_unsubback(&lock_clientes, paquete)
                             },
                             _ => {
 
@@ -96,8 +97,61 @@ impl Server {
         )
     }
 
+    fn enviar_unsubback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete) {
+        let buffer: Vec<u8> = vec![0xB0, 0x02, paquete.bytes[0], paquete.bytes[1]];
+        match lock_clientes.lock() {
+            Ok(locked) => {
+                if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
+                    match locked[indice].channel.send(buffer) {
+                        Ok(_) => { println!("SubBack enviado") },
+                        Err(_) => { println!("Error al enviar Subback") }
+                    }
+                }
+            },
+            Err(_) => { println!("Imposible acceder al lock desde el cordinador") }
+        }
+    }
+
+    fn procesar_unsubscribe(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: &Paquete) {
+        let mut indice = 2;
+        while indice < paquete.bytes.len() {
+            let tamanio_topic: usize = ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
+            indice += 2;
+            let topico = bytes2string(
+                &paquete.bytes[indice..(indice + tamanio_topic)],
+            ).unwrap();
+            indice += tamanio_topic;
+            match lock_clientes.lock() {
+                Ok(mut locked) => {
+                    if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
+                        locked[indice].unsubscribe(topico);
+                    }
+                },
+                Err(_) => { println!("Error al intentar desuscribir de un topico") }
+            }
+        }
+    }
+
+    fn enviar_subback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete, vector_con_qos: Vec<u8>) {
+        let mut buffer: Vec<u8> = vec![0x90, (vector_con_qos.len() as u8 + 2_u8) as u8, paquete.bytes[0], paquete.bytes[1]];
+        for bytes in vector_con_qos {
+            buffer.push(bytes);
+        }
+        match lock_clientes.lock() {
+            Ok(locked) => {
+                if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
+                    match locked[indice].channel.send(buffer) {
+                        Ok(_) => { println!("SubBack enviado") },
+                        Err(_) => { println!("Error al enviar Subback") }
+                    }
+                }
+            },
+            Err(_) => { println!("Imposible acceder al lock desde el cordinador") }
+        }
+    }
+
     fn procesar_subscribe(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: &Paquete) -> Vec<u8> {
-        let mut indice = 0;
+        let mut indice = 2;
         let mut vector_con_qos: Vec<u8> = Vec::new();
         while indice < paquete.bytes.len() {
             let tamanio_topic: usize = ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
@@ -118,24 +172,6 @@ impl Server {
             }
         }
         vector_con_qos
-    }
-
-    fn enviar_subback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete, vector_con_qos: Vec<u8>) {
-        let mut buffer: Vec<u8> = vec![0x90, vector_con_qos.len() as u8];
-        for bytes in vector_con_qos {
-            buffer.push(bytes);
-        }
-        match lock_clientes.lock() {
-            Ok(locked) => {
-                if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
-                    match locked[indice].channel.send(buffer) {
-                        Ok(_) => { println!("SubBack enviado") },
-                        Err(_) => { println!("Error al enviar Subback") }
-                    }
-                }
-            },
-            Err(_) => { println!("Imposible acceder al lock desde el cordinador") }
-        }
     }
 
     fn wait_new_clients(

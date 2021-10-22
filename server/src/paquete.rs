@@ -82,14 +82,11 @@ pub fn leer_paquete(
                 }
             }*/
         }
-        Paquetes::Subscribe => match realizar_suscripcion(cliente, buffer_paquete) {
-            Ok(_ase) => {}
-            Err(_) => {
-                println!("Error en la subscripcion")
-            }
+        Paquetes::Subscribe =>  {
+            cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Subscribe);
         },
         Paquetes::Unsubscribe => {
-            println!("Recibido paquete Unsubscribe");
+            cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Unsubscribe);
         }
         Paquetes::PingReq => {
             println!("Recibido paquete Pinreq");
@@ -102,24 +99,21 @@ pub fn leer_paquete(
     Ok(())
 }
 
-fn realizar_suscripcion(cliente: &mut FlagsCliente, mut buffer_paquete: Vec<u8>) -> Result<(), ()> {
-    let _paquet_identifier = ((buffer_paquete[0] as usize) << 8) + buffer_paquete[1] as usize;
-    buffer_paquete.remove(1);
-    buffer_paquete.remove(0);
+fn cambiar_suscripcion(cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>, tipo: Paquetes){
     let paquete_a_servidor = Paquete{
         thread_id: cliente.id,
-        packet_type: Paquetes::Subscribe,
+        packet_type: tipo,
         bytes: buffer_paquete
     };
     let sender = cliente.sender.lock();
     match sender {
         Ok(sender_ok) => {
-            return match sender_ok.send(paquete_a_servidor) {
-                Ok(_) => { Ok(()) },
-                Err(_) => { Err(()) }
+            match sender_ok.send(paquete_a_servidor) {
+                Ok(_) => { println!("Exito enviando cambio de subscripcion al thread coordinador") },
+                Err(_) => { println!("Error enviando cambio de subscripcion al thread coordinador") }
             };
         },
-        Err(_) => {Err(())}
+        Err(_) => {println!("Error al leer cambio de suscripcion")}
     }
 }
 
