@@ -66,18 +66,17 @@ impl Server {
             .spawn(move || loop {
                 match receiver_del_coordinador.recv() {
                     Ok(paquete) => {
-                        match paquete.packet_type{
+                        match paquete.packet_type {
                             Paquetes::Subscribe => {
-                                let vector_con_qos = Server::procesar_subscribe(&lock_clientes, &paquete);
+                                let vector_con_qos =
+                                    Server::procesar_subscribe(&lock_clientes, &paquete);
                                 Server::enviar_subback(&lock_clientes, paquete, vector_con_qos)
-                            },
+                            }
                             Paquetes::Unsubscribe => {
                                 Server::procesar_unsubscribe(&lock_clientes, &paquete);
                                 Server::enviar_unsubback(&lock_clientes, paquete)
-                            },
-                            _ => {
-
                             }
+                            _ => {}
                         }
                         if lock_clientes.lock().unwrap().is_empty() {
                             println!("Esta vacio, no lo ves?");
@@ -103,37 +102,53 @@ impl Server {
             Ok(locked) => {
                 if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                     match locked[indice].channel.send(buffer) {
-                        Ok(_) => { println!("SubBack enviado") },
-                        Err(_) => { println!("Error al enviar Subback") }
+                        Ok(_) => {
+                            println!("SubBack enviado")
+                        }
+                        Err(_) => {
+                            println!("Error al enviar Subback")
+                        }
                     }
                 }
-            },
-            Err(_) => { println!("Imposible acceder al lock desde el cordinador") }
+            }
+            Err(_) => {
+                println!("Imposible acceder al lock desde el cordinador")
+            }
         }
     }
 
     fn procesar_unsubscribe(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: &Paquete) {
         let mut indice = 2;
         while indice < paquete.bytes.len() {
-            let tamanio_topic: usize = ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
+            let tamanio_topic: usize =
+                ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
             indice += 2;
-            let topico = bytes2string(
-                &paquete.bytes[indice..(indice + tamanio_topic)],
-            ).unwrap();
+            let topico = bytes2string(&paquete.bytes[indice..(indice + tamanio_topic)]).unwrap();
             indice += tamanio_topic;
             match lock_clientes.lock() {
                 Ok(mut locked) => {
                     if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                         locked[indice].unsubscribe(topico);
                     }
-                },
-                Err(_) => { println!("Error al intentar desuscribir de un topico") }
+                }
+                Err(_) => {
+                    println!("Error al intentar desuscribir de un topico")
+                }
             }
         }
     }
 
-    fn enviar_subback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete, vector_con_qos: Vec<u8>) {
-        let mut buffer: Vec<u8> = vec![0x90, (vector_con_qos.len() as u8 + 2_u8) as u8, paquete.bytes[0], paquete.bytes[1]];
+    fn enviar_subback(
+        lock_clientes: &Arc<Mutex<Vec<Client>>>,
+        paquete: Paquete,
+        vector_con_qos: Vec<u8>,
+    ) {
+        let mut buffer: Vec<u8> = vec![
+            0x90,
+            (vector_con_qos.len() as u8 + 2_u8) as u8,
+            paquete.bytes[0],
+            paquete.bytes[1],
+        ];
         for bytes in vector_con_qos {
             buffer.push(bytes);
         }
@@ -141,12 +156,18 @@ impl Server {
             Ok(locked) => {
                 if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                     match locked[indice].channel.send(buffer) {
-                        Ok(_) => { println!("SubBack enviado") },
-                        Err(_) => { println!("Error al enviar Subback") }
+                        Ok(_) => {
+                            println!("SubBack enviado")
+                        }
+                        Err(_) => {
+                            println!("Error al enviar Subback")
+                        }
                     }
                 }
-            },
-            Err(_) => { println!("Imposible acceder al lock desde el cordinador") }
+            }
+            Err(_) => {
+                println!("Imposible acceder al lock desde el cordinador")
+            }
         }
     }
 
@@ -154,11 +175,10 @@ impl Server {
         let mut indice = 2;
         let mut vector_con_qos: Vec<u8> = Vec::new();
         while indice < paquete.bytes.len() {
-            let tamanio_topic: usize = ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
+            let tamanio_topic: usize =
+                ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
             indice += 2;
-            let topico = bytes2string(
-                &paquete.bytes[indice..(indice + tamanio_topic)],
-            ).unwrap();
+            let topico = bytes2string(&paquete.bytes[indice..(indice + tamanio_topic)]).unwrap();
             indice += tamanio_topic;
             let qos: u8 = &paquete.bytes[indice] & 0x01;
             match lock_clientes.lock() {
@@ -167,8 +187,8 @@ impl Server {
                         locked[indice].subscribe(topico);
                         vector_con_qos.push(qos);
                     }
-                },
-                Err(_) => { vector_con_qos.push(0x80) }
+                }
+                Err(_) => vector_con_qos.push(0x80),
             }
         }
         vector_con_qos

@@ -82,9 +82,9 @@ pub fn leer_paquete(
                 }
             }*/
         }
-        Paquetes::Subscribe =>  {
+        Paquetes::Subscribe => {
             cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Subscribe);
-        },
+        }
         Paquetes::Unsubscribe => {
             cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Unsubscribe);
         }
@@ -99,21 +99,27 @@ pub fn leer_paquete(
     Ok(())
 }
 
-fn cambiar_suscripcion(cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>, tipo: Paquetes){
-    let paquete_a_servidor = Paquete{
+fn cambiar_suscripcion(cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>, tipo: Paquetes) {
+    let paquete_a_servidor = Paquete {
         thread_id: cliente.id,
         packet_type: tipo,
-        bytes: buffer_paquete
+        bytes: buffer_paquete,
     };
     let sender = cliente.sender.lock();
     match sender {
         Ok(sender_ok) => {
             match sender_ok.send(paquete_a_servidor) {
-                Ok(_) => { println!("Exito enviando cambio de subscripcion al thread coordinador") },
-                Err(_) => { println!("Error enviando cambio de subscripcion al thread coordinador") }
+                Ok(_) => {
+                    println!("Exito enviando cambio de subscripcion al thread coordinador")
+                }
+                Err(_) => {
+                    println!("Error enviando cambio de subscripcion al thread coordinador")
+                }
             };
-        },
-        Err(_) => {println!("Error al leer cambio de suscripcion")}
+        }
+        Err(_) => {
+            println!("Error al leer cambio de suscripcion")
+        }
     }
 }
 
