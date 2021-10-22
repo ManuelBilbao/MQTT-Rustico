@@ -115,11 +115,11 @@ fn realizar_suscripcion(cliente: &mut FlagsCliente, mut buffer_paquete: Vec<u8>)
     match sender {
         Ok(sender_ok) => {
             match sender_ok.send(paquete_a_servidor) {
-                Ok(_) => { return Ok(0) },
-                Err(_) => { return Err(0) }
+                Ok(_) => { Ok(0) },
+                Err(_) => { Err(0) }
             };
         },
-        Err(_) => { return Err(0) }
+        Err(_) => { Err(0) }
     }
 }
 

@@ -71,7 +71,12 @@ impl Server {
                                 let vector_con_qos = Server::procesar_subscribe(&lock_clientes, &paquete);
                                 Server::enviar_subback(&lock_clientes, paquete, vector_con_qos)
                             },
-                            _ => {}
+                            Paquetes::Unsubscribe => {
+                              println!("FUncionalidad aun no implementada");
+                            },
+                            _ => {
+
+                            }
                         }
                         if lock_clientes.lock().unwrap().is_empty() {
                             println!("Esta vacio, no lo ves?");
@@ -116,9 +121,7 @@ impl Server {
     }
 
     fn enviar_subback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete, vector_con_qos: Vec<u8>) {
-        let mut buffer: Vec<u8> = Vec::new();
-        buffer.push(0x90);
-        buffer.push(vector_con_qos.len() as u8);
+        let mut buffer: Vec<u8> = !vec[0x90, vector_con_qos.len() as u8];
         for bytes in vector_con_qos {
             buffer.push(bytes);
         }
