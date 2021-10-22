@@ -1,4 +1,4 @@
-use crate::server::{realizar_conexion, FlagsCliente};
+use crate::server::{realizar_conexion, FlagsCliente, Paquete};
 use std::io::{Read, Write};
 
 const MQTT_VERSION: u8 = 4;
@@ -57,9 +57,9 @@ impl From<Paquetes> for u8 {
 pub fn leer_paquete(
     cliente: &mut FlagsCliente,
     tipo_paquete: Paquetes,
-    tamaño_lectura: u8,
+    tamanio_lectura: u8,
 ) -> Result<(), std::io::Error> {
-    let mut buffer_paquete: Vec<u8> = vec![0; tamaño_lectura as usize];
+    let mut buffer_paquete: Vec<u8> = vec![0; tamanio_lectura as usize];
     cliente.conexion.read_exact(&mut buffer_paquete)?;
     match tipo_paquete {
         Paquetes::Connect => {
@@ -84,7 +84,9 @@ pub fn leer_paquete(
         }
         Paquetes::Subscribe => match realizar_suscripcion(cliente, buffer_paquete) {
             Ok(_ase) => {}
-            Err(_co) => {}
+            Err(_) => {
+                println!("Error en la subscripcion")
+            }
         },
         Paquetes::Unsubscribe => {
             println!("Recibido paquete Unsubscribe");
@@ -100,11 +102,25 @@ pub fn leer_paquete(
     Ok(())
 }
 
-fn realizar_suscripcion(_cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>) -> Result<u8, u8> {
-    let _tamanio_topic: usize = ((buffer_paquete[0] as usize) << 8) + buffer_paquete[1] as usize;
-    let mut _indice = 2;
-
-    Ok(5)
+fn realizar_suscripcion(cliente: &mut FlagsCliente, mut buffer_paquete: Vec<u8>) -> Result<u8, u8> {
+    let _paquet_identifier = ((buffer_paquete[0] as usize) << 8) + buffer_paquete[1] as usize;
+    buffer_paquete.remove(1);
+    buffer_paquete.remove(0);
+    let paquete_a_servidor = Paquete{
+        thread_id: cliente.id,
+        packet_type: Paquetes::Subscribe,
+        bytes: buffer_paquete
+    };
+    let sender = cliente.sender.lock();
+    match sender {
+        Ok(sender_ok) => {
+            match sender_ok.send(paquete_a_servidor) {
+                Ok(_) => { return Ok(0) },
+                Err(_) => { return Err(0) }
+            };
+        },
+        Err(_) => { return Err(0) }
+    }
 }
 
 pub fn verificar_nombre_protocolo(buffer: &[u8]) -> Result<(), u8> {
