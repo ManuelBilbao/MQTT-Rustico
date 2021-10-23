@@ -274,13 +274,14 @@ impl Server {
     fn procesar_subscribe(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: &Paquete) -> Vec<u8> {
         let mut indice = 2;
         let mut vector_con_qos: Vec<u8> = Vec::new();
-        while indice < paquete.bytes.len() {
+        while indice < (paquete.bytes.len() - 2) {
             let tamanio_topic: usize =
                 ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
             indice += 2;
             let topico = bytes2string(&paquete.bytes[indice..(indice + tamanio_topic)]).unwrap();
             indice += tamanio_topic;
             let qos: u8 = &paquete.bytes[indice] & 0x01;
+            indice += 1;
             match lock_clientes.lock() {
                 Ok(mut locked) => {
                     if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {

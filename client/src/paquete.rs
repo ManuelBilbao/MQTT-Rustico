@@ -75,7 +75,7 @@ pub fn leer_paquete(
             leer_connack(buffer_paquete);
         }
         Paquetes::SubAck => {
-            // Manejar SUBACK
+            leer_suback(buffer_paquete);
         }
         _ => {
             // Manejar
@@ -91,6 +91,20 @@ pub fn leer_connack(buffer: Vec<u8>) {
         "Recibe connack con sp: {} y return code {}",
         session_present, return_code
     );
+}
+
+pub fn leer_suback(buffer: Vec<u8>) {
+    let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
+    println!("Recibido SubAck. Packet Identifier: {}.", packet_identifier);
+
+    let cantidad_topics = buffer.len() - 2;
+    let mut topic_results: Vec<u8> = Vec::new();
+    print!("Resultados: ");
+    for i in 0..cantidad_topics {
+        print!("{}, ", &buffer[i + 2]);
+        topic_results.push(buffer[i + 2]);
+    }
+    println!();
 }
 
 pub fn enviar_paquete_conexion(
@@ -158,7 +172,7 @@ pub fn enviar_paquete_conexion(
     stream.write_all(&buffer_envio).unwrap();
 }
 
-pub fn _enviar_paquete_suscribe(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn _enviar_paquete_subscribe(stream: &mut TcpStream, topics: Vec<String>) {
     let mut buffer_envio: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
@@ -174,7 +188,7 @@ pub fn _enviar_paquete_suscribe(stream: &mut TcpStream, topics: Vec<String>) {
     stream.write_all(&buffer_envio).unwrap();
 }
 
-pub fn _enviar_paquete_unsuscribe(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn _enviar_paquete_unsubscribe(stream: &mut TcpStream, topics: Vec<String>) {
     let mut buffer_envio: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
