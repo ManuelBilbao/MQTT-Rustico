@@ -144,7 +144,7 @@ impl Server {
         vector_con_qos: Vec<u8>,
     ) {
         let mut buffer: Vec<u8> = vec![
-            0x90,
+            Paquetes::SubAck.into(),
             (vector_con_qos.len() as u8 + 2_u8) as u8,
             paquete.bytes[0],
             paquete.bytes[1],
