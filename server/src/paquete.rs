@@ -70,6 +70,7 @@ pub fn leer_paquete(
     cliente: &mut FlagsCliente,
     tipo_paquete: Paquetes,
     tamanio_lectura: u8,
+    _byte_0: u8,
 ) -> Result<(), std::io::Error> {
     let mut buffer_paquete: Vec<u8> = vec![0; tamanio_lectura as usize];
     cliente.conexion.read_exact(&mut buffer_paquete)?;

@@ -77,7 +77,7 @@ impl Server {
             .spawn(move || loop {
                 info!("Se lanzado el thread-coordinator");
                 match receiver_del_coordinador.recv() {
-                    Ok(paquete) => {
+                    Ok(mut paquete) => {
                         match paquete.packet_type {
                             Paquetes::Subscribe => {
                                 info!("Se recibio un paquete Subscribe.");
@@ -89,6 +89,17 @@ impl Server {
                                 info!("Se recibio un paquete Unsubscribe.");
                                 Server::procesar_unsubscribe(&lock_clientes, &paquete);
                                 Server::enviar_unsubback(&lock_clientes, paquete)
+                            }
+                            Paquetes::Publish => {
+                                let topic_name = Server::procesar_publish(&mut paquete);
+                                if topic_name.is_empty() {
+                                    continue;
+                                }
+                                Server::enviar_publish_a_cliente(
+                                    &lock_clientes,
+                                    &mut paquete,
+                                    &topic_name,
+                                )
                             }
                             _ => {
                                 debug!("Se recibio un paquete desconocido.")
@@ -112,6 +123,64 @@ impl Server {
             lock_clientes_para_handler,
             &sender_de_los_clientes,
         )
+    }
+
+    fn enviar_publish_a_cliente(
+        lock_clientes: &Arc<Mutex<Vec<Client>>>,
+        paquete: &mut Paquete,
+        topic_name: &str,
+    ) {
+        paquete.bytes.remove(0);
+        match lock_clientes.lock() {
+            Ok(locked) => {
+                for cliente in locked.iter() {
+                    if cliente.is_subscribed_to(topic_name) {
+                        let mut buffer_paquete: Vec<u8> =
+                            vec![Paquetes::Publish.into(), paquete.bytes.len() as u8];
+                        buffer_paquete.append(&mut paquete.bytes);
+                        match cliente.channel.send(buffer_paquete) {
+                            Ok(_) => {
+                                println!("Publish enviado al cliente")
+                            }
+                            Err(_) => {
+                                println!("Error al enviar Publish al cliente")
+                            }
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Imposible acceder al lock desde el cordinador")
+            }
+        }
+    }
+
+    fn procesar_publish(paquete: &mut Paquete) -> String {
+        let _byte_0 = paquete.bytes[0]; //TODO Retained & qos
+        let tamanio_total = paquete.bytes.len();
+        let topic_name_len: usize = ((paquete.bytes[1] as usize) << 8) + paquete.bytes[2] as usize;
+        let mut topic_name = String::from("");
+        match bytes2string(&paquete.bytes[3..(3 + topic_name_len)]) {
+            Ok(value) => {
+                topic_name = value;
+            }
+            Err(_) => {
+                println!("Error procesando topico");
+            }
+        }
+        let mut _topic_desc = String::from(""); //INICIO RETAINED
+        if tamanio_total > 3 + topic_name_len {
+            match bytes2string(&paquete.bytes[(5 + topic_name_len)..(tamanio_total)]) {
+                Ok(value) => {
+                    _topic_desc = value;
+                }
+                Err(_) => {
+                    println!("Error leyendo contenido del publish")
+                }
+            }
+        }
+        //TODO: AGREGAR RETAINED ACA
+        topic_name
     }
 
     fn enviar_unsubback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete) {
@@ -149,7 +218,7 @@ impl Server {
             let tamanio_topic: usize =
                 ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
             indice += 2;
-            let topico = bytes2string(&paquete.bytes[indice..(indice + tamanio_topic)]).unwrap();
+            let topico = bytes2string(&paquete.bytes[indice..(indice + tamanio_topic)]).unwrap(); //TODO Cambiar el unwrap
             indice += tamanio_topic;
             match lock_clientes.lock() {
                 Ok(mut locked) => {
@@ -216,6 +285,7 @@ impl Server {
                 Ok(mut locked) => {
                     if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                         locked[indice].subscribe(topico);
+                        //TODO: ENVIAR RETAINED SI CORRESPONDE
                         vector_con_qos.push(qos);
                         info!("El cliente se subscribio al topico")
                     }
@@ -301,7 +371,13 @@ pub fn handle_client(
             Ok(_) => {
                 //Acordarse de leerlo  como BE, let mensaje = u32::from_be_bytes(num_buffer);
                 let tipo_paquete = num_buffer[0].into();
-                leer_paquete(&mut cliente_actual, tipo_paquete, num_buffer[1]).unwrap();
+                leer_paquete(
+                    &mut cliente_actual,
+                    tipo_paquete,
+                    num_buffer[1],
+                    num_buffer[0],
+                )
+                .unwrap();
             }
             Err(_) => {
                 println!("Error");
