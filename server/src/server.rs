@@ -8,6 +8,8 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+use tracing::{debug, info, warn, Level};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 const CONEXION_IDENTIFICADOR_RECHAZADO: u8 = 2;
 const _CONEXION_PROTOCOLO_RECHAZADO: u8 = 1;
@@ -51,8 +53,17 @@ impl Server {
     }
 
     pub fn run(&self) -> std::io::Result<()> {
+        let file_appender = RollingFileAppender::new(Rotation::NEVER, "", self.cfg.get_log_file());
+        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+        tracing_subscriber::fmt()
+            .with_writer(non_blocking)
+            .with_max_level(Level::TRACE)
+            .init();
+        info!("Arranca sistema de logs.");
         let address = self.cfg.get_address();
-        println!("IP: {}", &address);
+        debug!("IP: {}", &address); //
+        println!("IP: {}", &address); //
+
         let clientes: Vec<Client> = Vec::new();
         let lock_clientes = Arc::new(Mutex::new(clientes));
         let lock_clientes_para_handler = lock_clientes.clone();
@@ -64,26 +75,33 @@ impl Server {
         thread::Builder::new()
             .name("Coordinator".into())
             .spawn(move || loop {
+                info!("Se lanzado el thread-coordinator");
                 match receiver_del_coordinador.recv() {
                     Ok(paquete) => {
                         match paquete.packet_type {
                             Paquetes::Subscribe => {
+                                info!("Se recibio un paquete Subscribe.");
                                 let vector_con_qos =
                                     Server::procesar_subscribe(&lock_clientes, &paquete);
                                 Server::enviar_subback(&lock_clientes, paquete, vector_con_qos)
                             }
                             Paquetes::Unsubscribe => {
+                                info!("Se recibio un paquete Unsubscribe.");
                                 Server::procesar_unsubscribe(&lock_clientes, &paquete);
                                 Server::enviar_unsubback(&lock_clientes, paquete)
                             }
-                            _ => {}
+                            _ => {
+                                debug!("Se recibio un paquete desconocido.")
+                            }
                         }
                         if lock_clientes.lock().unwrap().is_empty() {
-                            println!("Esta vacio, no lo ves?");
+                            println!("Esta vacio, no lo ves?.");
+                            debug!("No hay clientes.");
                         }
                     }
                     Err(_e) => {
-                        println!("error del coordinador al recibir un paquete");
+                        println!("error del coordinador al recibir un paquete.");
+                        warn!("Error del coordinador al recibir un paquete.");
                     }
                 }
             })?;
@@ -108,16 +126,19 @@ impl Server {
                 if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                     match locked[indice].channel.send(buffer) {
                         Ok(_) => {
-                            println!("SubBack enviado")
+                            println!("SubBack enviado.");
+                            info!("SubBack enviado.");
                         }
                         Err(_) => {
-                            println!("Error al enviar Subback")
+                            println!("Error al enviar Unsubback.");
+                            debug!("Error con el envio del Unsubback.")
                         }
                     }
                 }
             }
             Err(_) => {
-                println!("Imposible acceder al lock desde el cordinador")
+                println!("Imposible acceder al lock desde el cordinador.");
+                warn!("Imposible acceder al lock desde el cordinador.")
             }
         }
     }
@@ -134,10 +155,12 @@ impl Server {
                 Ok(mut locked) => {
                     if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                         locked[indice].unsubscribe(topico);
+                        info!("El cliente se desuscribio del topico.")
                     }
                 }
                 Err(_) => {
-                    println!("Error al intentar desuscribir de un topico")
+                    println!("Error al intentar desuscribir de un topico.");
+                    warn!("Error al intentar desuscribir de un topico.")
                 }
             }
         }
@@ -162,16 +185,19 @@ impl Server {
                 if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                     match locked[indice].channel.send(buffer) {
                         Ok(_) => {
-                            println!("SubBack enviado")
+                            println!("SubBack enviado");
+                            info!("SubBack enviado")
                         }
                         Err(_) => {
-                            println!("Error al enviar Subback")
+                            println!("Error al enviar Subback");
+                            debug!("Error al enviar Subback")
                         }
                     }
                 }
             }
             Err(_) => {
-                println!("Imposible acceder al lock desde el cordinador")
+                println!("Imposible acceder al lock desde el cordinador");
+                warn!("Imposible acceder al lock desde el cordinador")
             }
         }
     }
@@ -191,6 +217,7 @@ impl Server {
                     if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
                         locked[indice].subscribe(topico);
                         vector_con_qos.push(qos);
+                        info!("El cliente se subscribio al topico")
                     }
                 }
                 Err(_) => vector_con_qos.push(0x80),
@@ -219,6 +246,7 @@ impl Server {
             thread::Builder::new()
                 .name("Client-Listener".into())
                 .spawn(move || {
+                    info!("Se lanzo un nuevo cliente.");
                     handle_client(
                         indice,
                         &mut client_stream,

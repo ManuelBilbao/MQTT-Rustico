@@ -1,5 +1,6 @@
 use crate::server::{realizar_conexion, FlagsCliente, Paquete};
 use std::io::{Read, Write};
+use tracing::{debug, info};
 
 const MQTT_VERSION: u8 = 4;
 const MQTT_NAME: [u8; 6] = [0x00, 0x04, 0x4D, 0x51, 0x54, 0x54];
@@ -137,9 +138,11 @@ fn cambiar_suscripcion(cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>, tipo
 pub fn verificar_nombre_protocolo(buffer: &[u8]) -> Result<(), u8> {
     for i in 0..6 {
         if buffer[i] != MQTT_NAME[i] {
+            debug!("Nombre de protocolo de conexion incorrecto");
             return Err(CONEXION_SERVIDOR_INCORRECTO);
         }
     }
+    info!("Nombre de protocolo de conexion correcto");
     Ok(())
 }
 

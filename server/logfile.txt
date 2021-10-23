@@ -1,0 +1,6 @@
+
+[2mOct 23 17:38:38.923[0m [32m INFO[0m server::server: Arranca sistema de logs.
+[2mOct 23 17:38:38.924[0m [34mDEBUG[0m server::server: IP: 127.0.0.1:1883
+[2mOct 23 17:38:38.924[0m [32m INFO[0m server::server: Se lanzado el thread-coordinator
+[2mOct 23 17:38:47.469[0m [32m INFO[0m server::server: Se lanzo un nuevo cliente.
+[2mOct 23 17:38:47.472[0m [32m INFO[0m server::paquete: Nombre de protocolo de conexion correcto
