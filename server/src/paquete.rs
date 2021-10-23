@@ -30,10 +30,15 @@ impl From<u8> for Paquetes {
             0x10 => Paquetes::Connect,
             0x20 => Paquetes::ConnAck,
             0x30 => Paquetes::Publish,
+            0x40 => Paquetes::PubAck,
+            0x60 => Paquetes::PubRel,
+            0x70 => Paquetes::PubComp,
             0x80 => Paquetes::Subscribe,
+            0x90 => Paquetes::SubAck,
             0xA0 => Paquetes::Unsubscribe,
             0xB0 => Paquetes::UnsubAck,
             0xC0 => Paquetes::PingReq,
+            0xD0 => Paquetes::PingResp,
             0xE0 => Paquetes::Disconnect,
             _ => Paquetes::Disconnect,
         }
@@ -46,12 +51,16 @@ impl From<Paquetes> for u8 {
             Paquetes::Connect => 0x10,
             Paquetes::ConnAck => 0x20,
             Paquetes::Publish => 0x30,
+            Paquetes::PubAck => 0x40,
+            Paquetes::PubRel => 0x62,
+            Paquetes::PubComp => 0x70,
             Paquetes::Subscribe => 0x82,
+            Paquetes::SubAck => 0x90,
             Paquetes::Unsubscribe => 0xA2,
             Paquetes::UnsubAck => 0xB0,
             Paquetes::PingReq => 0xC0,
+            Paquetes::PingResp => 0xD0,
             Paquetes::Disconnect => 0xE0,
-            _ => 0xE0,
         }
     }
 }
