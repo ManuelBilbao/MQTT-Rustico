@@ -97,7 +97,7 @@ impl Server {
     }
 
     fn enviar_unsubback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete) {
-        let buffer: Vec<u8> = vec![0xB0, 0x02, paquete.bytes[0], paquete.bytes[1]];
+        let buffer: Vec<u8> = vec![Paquetes::UnsubAck.into(), 0x02, paquete.bytes[0], paquete.bytes[1]];
         match lock_clientes.lock() {
             Ok(locked) => {
                 if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
