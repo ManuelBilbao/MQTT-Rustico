@@ -17,7 +17,7 @@ pub enum Paquetes {
     SubAck,
     Unsubscribe,
     UnsubAck,
-    PinReq,
+    PingReq,
     PingResp,
     Disconnect,
 }
@@ -28,9 +28,15 @@ impl From<u8> for Paquetes {
             0x10 => Paquetes::Connect,
             0x20 => Paquetes::ConnAck,
             0x30 => Paquetes::Publish,
+            0x40 => Paquetes::PubAck,
+            0x60 => Paquetes::PubRel,
+            0x70 => Paquetes::PubComp,
             0x80 => Paquetes::Subscribe,
+            0x90 => Paquetes::SubAck,
             0xA0 => Paquetes::Unsubscribe,
-            0xC0 => Paquetes::PinReq,
+            0xB0 => Paquetes::UnsubAck,
+            0xC0 => Paquetes::PingReq,
+            0xD0 => Paquetes::PingResp,
             0xE0 => Paquetes::Disconnect,
             _ => Paquetes::Disconnect,
         }
@@ -43,11 +49,16 @@ impl From<Paquetes> for u8 {
             Paquetes::Connect => 0x10,
             Paquetes::ConnAck => 0x20,
             Paquetes::Publish => 0x30,
+            Paquetes::PubAck => 0x40,
+            Paquetes::PubRel => 0x62,
+            Paquetes::PubComp => 0x70,
             Paquetes::Subscribe => 0x82,
+            Paquetes::SubAck => 0x90,
             Paquetes::Unsubscribe => 0xA2,
-            Paquetes::PinReq => 0xC0,
+            Paquetes::UnsubAck => 0xB0,
+            Paquetes::PingReq => 0xC0,
+            Paquetes::PingResp => 0xD0,
             Paquetes::Disconnect => 0xE0,
-            _ => 0xE0,
         }
     }
 }
@@ -174,6 +185,26 @@ pub fn _enviar_paquete_unsuscribe(stream: &mut TcpStream, topics: Vec<String>) {
 
     buffer_envio.insert(0, buffer_envio.len() as u8); // Remaining length
     buffer_envio.insert(0, Paquetes::Unsubscribe.into());
+
+    stream.write_all(&buffer_envio).unwrap();
+}
+
+pub fn _enviar_paquete_publish(stream: &mut TcpStream, topic: String, message: String, dup: bool) {
+    let mut buffer_envio: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
+    buffer_envio.append(&mut topic.as_bytes().to_vec());
+
+    buffer_envio.push(0x00); // Packet identifier, TODO: parametrizar
+    buffer_envio.push(0x00);
+
+    buffer_envio.append(&mut message.as_bytes().to_vec());
+
+    buffer_envio.insert(0, buffer_envio.len() as u8);
+
+    let bit_dup: u8 = match dup {
+        true => 0x04,
+        false => 0x00,
+    };
+    buffer_envio.insert(0, u8::from(Paquetes::Publish) | bit_dup); // TODO: agregar QoS y Retain
 
     stream.write_all(&buffer_envio).unwrap();
 }
