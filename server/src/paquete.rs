@@ -1,4 +1,4 @@
-use crate::server::{realizar_conexion, FlagsCliente};
+use crate::server::{realizar_conexion, FlagsCliente, Paquete};
 use std::io::{Read, Write};
 
 const MQTT_VERSION: u8 = 4;
@@ -57,9 +57,9 @@ impl From<Paquetes> for u8 {
 pub fn leer_paquete(
     cliente: &mut FlagsCliente,
     tipo_paquete: Paquetes,
-    tamaño_lectura: u8,
+    tamanio_lectura: u8,
 ) -> Result<(), std::io::Error> {
-    let mut buffer_paquete: Vec<u8> = vec![0; tamaño_lectura as usize];
+    let mut buffer_paquete: Vec<u8> = vec![0; tamanio_lectura as usize];
     cliente.conexion.read_exact(&mut buffer_paquete)?;
     match tipo_paquete {
         Paquetes::Connect => {
@@ -82,12 +82,11 @@ pub fn leer_paquete(
                 }
             }*/
         }
-        Paquetes::Subscribe => match realizar_suscripcion(cliente, buffer_paquete) {
-            Ok(_ase) => {}
-            Err(_co) => {}
-        },
+        Paquetes::Subscribe => {
+            cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Subscribe);
+        }
         Paquetes::Unsubscribe => {
-            println!("Recibido paquete Unsubscribe");
+            cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Unsubscribe);
         }
         Paquetes::PingReq => {
             println!("Recibido paquete Pinreq");
@@ -100,11 +99,28 @@ pub fn leer_paquete(
     Ok(())
 }
 
-fn realizar_suscripcion(_cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>) -> Result<u8, u8> {
-    let _tamanio_topic: usize = ((buffer_paquete[0] as usize) << 8) + buffer_paquete[1] as usize;
-    let mut _indice = 2;
-
-    Ok(5)
+fn cambiar_suscripcion(cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>, tipo: Paquetes) {
+    let paquete_a_servidor = Paquete {
+        thread_id: cliente.id,
+        packet_type: tipo,
+        bytes: buffer_paquete,
+    };
+    let sender = cliente.sender.lock();
+    match sender {
+        Ok(sender_ok) => {
+            match sender_ok.send(paquete_a_servidor) {
+                Ok(_) => {
+                    println!("Exito enviando cambio de subscripcion al thread coordinador")
+                }
+                Err(_) => {
+                    println!("Error enviando cambio de subscripcion al thread coordinador")
+                }
+            };
+        }
+        Err(_) => {
+            println!("Error al leer cambio de suscripcion")
+        }
+    }
 }
 
 pub fn verificar_nombre_protocolo(buffer: &[u8]) -> Result<(), u8> {

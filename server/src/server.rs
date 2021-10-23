@@ -21,8 +21,10 @@ pub struct Server {
 }
 
 pub struct FlagsCliente<'a> {
-    id: Option<String>,
+    pub id: usize,
+    client_id: Option<String>,
     pub conexion: &'a mut TcpStream,
+    pub sender: Arc<Mutex<Sender<Paquete>>>,
     username: Option<String>,
     password: Option<String>,
     will_topic: Option<String>,
@@ -33,9 +35,9 @@ pub struct FlagsCliente<'a> {
 }
 
 pub struct Paquete {
-    _client_id: usize,
-    _packet_type: Paquetes,
-    _bytes: Vec<u8>,
+    pub thread_id: usize,
+    pub packet_type: Paquetes,
+    pub bytes: Vec<u8>,
 }
 
 impl Server {
@@ -63,13 +65,25 @@ impl Server {
             .name("Coordinator".into())
             .spawn(move || loop {
                 match receiver_del_coordinador.recv() {
-                    Ok(_val) => {
+                    Ok(paquete) => {
+                        match paquete.packet_type {
+                            Paquetes::Subscribe => {
+                                let vector_con_qos =
+                                    Server::procesar_subscribe(&lock_clientes, &paquete);
+                                Server::enviar_subback(&lock_clientes, paquete, vector_con_qos)
+                            }
+                            Paquetes::Unsubscribe => {
+                                Server::procesar_unsubscribe(&lock_clientes, &paquete);
+                                Server::enviar_unsubback(&lock_clientes, paquete)
+                            }
+                            _ => {}
+                        }
                         if lock_clientes.lock().unwrap().is_empty() {
-                            println!("Esta vacio");
+                            println!("Esta vacio, no lo ves?");
                         }
                     }
                     Err(_e) => {
-                        println!("error");
+                        println!("error del coordinador al recibir un paquete");
                     }
                 }
             })?;
@@ -80,6 +94,104 @@ impl Server {
             lock_clientes_para_handler,
             &sender_de_los_clientes,
         )
+    }
+
+    fn enviar_unsubback(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: Paquete) {
+        let buffer: Vec<u8> = vec![Paquetes::UnsubAck.into(), 0x02, paquete.bytes[0], paquete.bytes[1]];
+        match lock_clientes.lock() {
+            Ok(locked) => {
+                if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
+                    match locked[indice].channel.send(buffer) {
+                        Ok(_) => {
+                            println!("SubBack enviado")
+                        }
+                        Err(_) => {
+                            println!("Error al enviar Subback")
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Imposible acceder al lock desde el cordinador")
+            }
+        }
+    }
+
+    fn procesar_unsubscribe(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: &Paquete) {
+        let mut indice = 2;
+        while indice < paquete.bytes.len() {
+            let tamanio_topic: usize =
+                ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
+            indice += 2;
+            let topico = bytes2string(&paquete.bytes[indice..(indice + tamanio_topic)]).unwrap();
+            indice += tamanio_topic;
+            match lock_clientes.lock() {
+                Ok(mut locked) => {
+                    if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
+                        locked[indice].unsubscribe(topico);
+                    }
+                }
+                Err(_) => {
+                    println!("Error al intentar desuscribir de un topico")
+                }
+            }
+        }
+    }
+
+    fn enviar_subback(
+        lock_clientes: &Arc<Mutex<Vec<Client>>>,
+        paquete: Paquete,
+        vector_con_qos: Vec<u8>,
+    ) {
+        let mut buffer: Vec<u8> = vec![
+            Paquetes::SubAck.into(),
+            (vector_con_qos.len() as u8 + 2_u8) as u8,
+            paquete.bytes[0],
+            paquete.bytes[1],
+        ];
+        for bytes in vector_con_qos {
+            buffer.push(bytes);
+        }
+        match lock_clientes.lock() {
+            Ok(locked) => {
+                if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
+                    match locked[indice].channel.send(buffer) {
+                        Ok(_) => {
+                            println!("SubBack enviado")
+                        }
+                        Err(_) => {
+                            println!("Error al enviar Subback")
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Imposible acceder al lock desde el cordinador")
+            }
+        }
+    }
+
+    fn procesar_subscribe(lock_clientes: &Arc<Mutex<Vec<Client>>>, paquete: &Paquete) -> Vec<u8> {
+        let mut indice = 2;
+        let mut vector_con_qos: Vec<u8> = Vec::new();
+        while indice < paquete.bytes.len() {
+            let tamanio_topic: usize =
+                ((paquete.bytes[indice] as usize) << 8) + paquete.bytes[indice + 1] as usize;
+            indice += 2;
+            let topico = bytes2string(&paquete.bytes[indice..(indice + tamanio_topic)]).unwrap();
+            indice += tamanio_topic;
+            let qos: u8 = &paquete.bytes[indice] & 0x01;
+            match lock_clientes.lock() {
+                Ok(mut locked) => {
+                    if let Some(indice) = locked.iter().position(|r| r.id == paquete.thread_id) {
+                        locked[indice].subscribe(topico);
+                        vector_con_qos.push(qos);
+                    }
+                }
+                Err(_) => vector_con_qos.push(0x80),
+            }
+        }
+        vector_con_qos
     }
 
     fn wait_new_clients(
@@ -118,15 +230,17 @@ impl Server {
 ///////////////////////a partir de aca puede ser que lo movamos o renombremos (para mi va aca pero renombrado)
 
 pub fn handle_client(
-    _indice: usize,
+    id: usize,
     stream: &mut TcpStream,
-    _sender_del_cliente: Arc<Mutex<Sender<Paquete>>>,
+    sender_del_cliente: Arc<Mutex<Sender<Paquete>>>,
     receiver_del_cliente: Receiver<Vec<u8>>,
 ) {
     let mut stream_clonado = stream.try_clone().unwrap();
     let mut cliente_actual = FlagsCliente {
-        id: None,
+        id,
+        client_id: None,
         conexion: stream,
+        sender: sender_del_cliente,
         username: None,
         password: None,
         will_topic: None,
@@ -164,7 +278,7 @@ pub fn handle_client(
     }
 }
 
-fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
+pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
     match std::str::from_utf8(bytes) {
         Ok(str) => Ok(str.to_owned()),
         Err(_) => Err(CONEXION_SERVIDOR_INCORRECTO),
@@ -242,7 +356,7 @@ pub fn realizar_conexion(cliente: &mut FlagsCliente, buffer_paquete: Vec<u8>) ->
         //
     }
 
-    cliente.id = client_id;
+    cliente.client_id = client_id;
     cliente.username = username;
     cliente.password = password;
     cliente.will_topic = will_topic;

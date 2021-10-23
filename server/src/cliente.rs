@@ -1,27 +1,27 @@
 use std::sync::mpsc::Sender;
 
 pub struct Client {
-    _id: usize,
-    _channel: Sender<Vec<u8>>,
-    _topics: Vec<String>,
+    pub id: usize,
+    pub channel: Sender<Vec<u8>>,
+    topics: Vec<String>,
 }
 
 impl Client {
-    pub fn new(_id: usize, _channel: Sender<Vec<u8>>) -> Self {
+    pub fn new(id: usize, channel: Sender<Vec<u8>>) -> Self {
         Client {
-            _id,
-            _channel,
-            _topics: Vec::new(),
+            id,
+            channel,
+            topics: Vec::new(),
         }
     }
 
-    pub fn _suscribe(&mut self, topic: String) {
-        self._topics.push(topic);
+    pub fn subscribe(&mut self, topic: String) {
+        self.topics.push(topic);
     }
 
-    pub fn _unsuscribe(&mut self, topic: String) {
-        if let Some(indice) = self._topics.iter().position(|r| *r == topic) {
-            self._topics.remove(indice);
+    pub fn unsubscribe(&mut self, topic: String) {
+        if let Some(indice) = self.topics.iter().position(|r| *r == topic) {
+            self.topics.remove(indice);
         }
     }
 }
