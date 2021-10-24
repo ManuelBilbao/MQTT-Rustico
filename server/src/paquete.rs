@@ -200,12 +200,10 @@ fn realizar_publicacion(
     };
     let sender = cliente.sender.lock();
     match sender {
-        Ok(sender_ok) => {
-            match sender_ok.send(paquete_a_servidor) {
-                Ok(_) => Ok(paquete_identifier),
-                Err(_) => Err("error".to_owned()),
-            }
-        }
+        Ok(sender_ok) => match sender_ok.send(paquete_a_servidor) {
+            Ok(_) => Ok(paquete_identifier),
+            Err(_) => Err("error".to_owned()),
+        },
         Err(_) => Err("error".to_owned()),
     }
 }
