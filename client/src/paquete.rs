@@ -72,6 +72,7 @@ pub fn leer_paquete(
     stream.read_exact(&mut buffer_paquete)?;
     match tipo_paquete {
         Paquetes::ConnAck => leer_connack(buffer_paquete),
+        Paquetes::PubAck => leer_puback(buffer_paquete),
         Paquetes::SubAck => leer_suback(buffer_paquete),
         Paquetes::UnsubAck => leer_unsuback(buffer_paquete),
         _ => {
@@ -88,6 +89,11 @@ pub fn leer_connack(buffer: Vec<u8>) {
         "Recibe connack con sp: {} y return code {}",
         session_present, return_code
     );
+}
+
+pub fn leer_puback(buffer: Vec<u8>) {
+    let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
+    println!("Recibido PubAck. Packet Identifier: {}.", packet_identifier);
 }
 
 pub fn leer_suback(buffer: Vec<u8>) {
