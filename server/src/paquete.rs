@@ -88,12 +88,14 @@ pub fn leer_paquete(
         }
         Paquetes::Publish => {
             println!("Recibido paquete Publish");
-            /*match realizar_publicacion(buffer_paquete) {
-                Ok(_) => {
+            match realizar_publicacion(cliente, buffer_paquete, _byte_0) {
+                Ok(paquete_identifier) => {
+                    enviar_resultado_publicacion(cliente, paquete_identifier);
                 }
                 Err(_) => {
+                    println!("error al realizar publicacion");
                 }
-            }*/
+            }
         }
         Paquetes::Subscribe => {
             cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Subscribe);
@@ -168,11 +170,45 @@ fn enviar_resultado_conexion(
     cliente.conexion.write_all(&buffer_envio).unwrap();
     println!("Envié el connac");
 }
+fn enviar_resultado_publicacion(cliente: &mut FlagsCliente, packet_identifier: [u8; 2]) {
+    let mut buffer_envio = [0u8; 4];
+    buffer_envio[0] = Paquetes::PubAck.into();
+    buffer_envio[1] = 0x02;
+    buffer_envio[2] = packet_identifier[0];
+    buffer_envio[3] = packet_identifier[1];
 
-fn _realizar_publicacion(_buffer_paquete: Vec<u8>) -> Result<(), String> {
-    Err("error".to_owned())
+    cliente.conexion.write_all(&buffer_envio).unwrap();
+    println!("Envié el puback");
 }
 
+fn realizar_publicacion(
+    cliente: &mut FlagsCliente,
+    mut buffer_paquete: Vec<u8>,
+    _byte_0: u8,
+) -> Result<[u8; 2], String> {
+    let tamanio_topic: usize = ((buffer_paquete[0] as usize) << 8) + buffer_paquete[1] as usize;
+    let mut paquete_identifier = [0u8; 2];
+    paquete_identifier[0] = buffer_paquete[tamanio_topic + 2];
+    paquete_identifier[1] = buffer_paquete[tamanio_topic + 3];
+    buffer_paquete.remove(tamanio_topic + 3);
+    buffer_paquete.remove(tamanio_topic + 2);
+    buffer_paquete.insert(0, _byte_0);
+    let paquete_a_servidor = Paquete {
+        thread_id: cliente.id,
+        packet_type: Paquetes::Publish,
+        bytes: buffer_paquete,
+    };
+    let sender = cliente.sender.lock();
+    match sender {
+        Ok(sender_ok) => {
+            match sender_ok.send(paquete_a_servidor) {
+                Ok(_) => Ok(paquete_identifier),
+                Err(_) => Err("error".to_owned()),
+            }
+        }
+        Err(_) => Err("error".to_owned()),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

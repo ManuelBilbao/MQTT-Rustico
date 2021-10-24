@@ -66,9 +66,9 @@ impl From<Paquetes> for u8 {
 pub fn leer_paquete(
     stream: &mut TcpStream,
     tipo_paquete: Paquetes,
-    tamaño_lectura: u8,
+    tamanio_lectura: u8,
 ) -> Result<(), std::io::Error> {
-    let mut buffer_paquete: Vec<u8> = vec![0; tamaño_lectura as usize];
+    let mut buffer_paquete: Vec<u8> = vec![0; tamanio_lectura as usize];
     stream.read_exact(&mut buffer_paquete)?;
     match tipo_paquete {
         Paquetes::ConnAck => leer_connack(buffer_paquete),
