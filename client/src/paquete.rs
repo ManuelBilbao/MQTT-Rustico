@@ -71,12 +71,9 @@ pub fn leer_paquete(
     let mut buffer_paquete: Vec<u8> = vec![0; tamaño_lectura as usize];
     stream.read_exact(&mut buffer_paquete)?;
     match tipo_paquete {
-        Paquetes::ConnAck => {
-            leer_connack(buffer_paquete);
-        }
-        Paquetes::SubAck => {
-            leer_suback(buffer_paquete);
-        }
+        Paquetes::ConnAck => leer_connack(buffer_paquete),
+        Paquetes::SubAck => leer_suback(buffer_paquete),
+        Paquetes::UnsubAck => leer_unsuback(buffer_paquete),
         _ => {
             // Manejar
             println!("No se que paqeute es");
@@ -105,6 +102,14 @@ pub fn leer_suback(buffer: Vec<u8>) {
         topic_results.push(buffer[i + 2]);
     }
     println!();
+}
+
+pub fn leer_unsuback(buffer: Vec<u8>) {
+    let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
+    println!(
+        "Recibido UnsubAck. Packet Identifier: {}.",
+        packet_identifier
+    );
 }
 
 pub fn enviar_paquete_conexion(
