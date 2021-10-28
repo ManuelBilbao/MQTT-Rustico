@@ -104,7 +104,7 @@ pub fn leer_paquete(
             cambiar_suscripcion(cliente, buffer_paquete, Paquetes::Unsubscribe);
         }
         Paquetes::PingReq => {
-            println!("Recibido paquete Pinreq");
+            enviar_pingresp(cliente);
         }
         _ => {
             println!("Recibido paquete desconocido");
@@ -207,6 +207,15 @@ fn realizar_publicacion(
         Err(_) => Err("error".to_owned()),
     }
 }
+
+fn enviar_pingresp(cliente: &mut FlagsCliente) {
+    let buffer_envio = [Paquetes::PingResp.into(), 0];
+
+    cliente.conexion.write_all(&buffer_envio).unwrap();
+    println!("Envié el PingResp");
+    info!("Enviado PingResp");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
