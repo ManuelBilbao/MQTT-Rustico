@@ -75,6 +75,7 @@ pub fn leer_paquete(
         Paquetes::PubAck => leer_puback(buffer_paquete),
         Paquetes::SubAck => leer_suback(buffer_paquete),
         Paquetes::UnsubAck => leer_unsuback(buffer_paquete),
+        Paquetes::PingResp => leer_pingresp(),
         _ => {
             // Manejar
             println!("No se que paqeute es");
@@ -116,6 +117,11 @@ pub fn leer_unsuback(buffer: Vec<u8>) {
         "Recibido UnsubAck. Packet Identifier: {}.",
         packet_identifier
     );
+}
+
+pub fn leer_pingresp() {
+    // PingResp viene vacio
+    // TODO: Do something
 }
 
 pub fn enviar_paquete_conexion(
@@ -231,5 +237,10 @@ pub fn _enviar_paquete_publish(stream: &mut TcpStream, topic: String, message: S
     };
     buffer_envio.insert(0, u8::from(Paquetes::Publish) | bit_dup); // TODO: agregar QoS y Retain
 
+    stream.write_all(&buffer_envio).unwrap();
+}
+
+pub fn _enviar_paquete_pingreq(stream: &mut TcpStream) {
+    let buffer_envio = [Paquetes::PingReq.into(), 0_u8];
     stream.write_all(&buffer_envio).unwrap();
 }
