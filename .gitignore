@@ -14,5 +14,6 @@ Cargo.lock
 **/*.rs.bk
 
 .idea
-server/logfile.txt
-server/logfile.log
+/server/logs.json
+
+
