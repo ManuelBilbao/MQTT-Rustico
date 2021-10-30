@@ -1,10 +1,10 @@
-pub fn mqtt_wildcard(topic: &str, wildcard: &str) -> bool {
-    if topic == wildcard || wildcard == "#" {
+pub fn compare_topic(topic_publish: &str, topic_subscribed: &str) -> bool {
+    if *topic_publish == *topic_subscribed || topic_subscribed == "#" {
         return true;
     }
 
-    let topic_splited: Vec<&str> = topic.split('/').collect();
-    let wildcard_splited: Vec<&str> = wildcard.split('/').collect();
+    let topic_splited: Vec<&str> = topic_publish.split('/').collect();
+    let wildcard_splited: Vec<&str> = topic_subscribed.split('/').collect();
 
     let mut i: usize = 0;
     for _ in 0..topic_splited.len() {
