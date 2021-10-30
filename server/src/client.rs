@@ -1,3 +1,4 @@
+use crate::wildcard::compare_topic;
 use std::sync::mpsc::Sender;
 
 pub struct Client {
@@ -28,7 +29,7 @@ impl Client {
     pub fn is_subscribed_to(&self, topic: &str) -> bool {
         let mut subscribed: bool = false;
         for topic_aux in &self.topics {
-            if *topic_aux == *topic {
+            if compare_topic(topic, topic_aux) {
                 subscribed = true;
             }
         }
