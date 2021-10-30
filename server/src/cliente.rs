@@ -29,9 +29,7 @@ impl Client {
     pub fn is_subscribed_to(&self, topic: &str) -> bool {
         let mut subscribed: bool = false;
         for topico in &self.topics {
-            if *topico == *topic {
-                subscribed = true;
-            } else if mqtt_wildcard(topico, topic) {
+            if *topico == *topic || mqtt_wildcard(topico, topic) {
                 subscribed = true;
             }
         }

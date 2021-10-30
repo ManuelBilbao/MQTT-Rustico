@@ -23,7 +23,7 @@ pub fn mqtt_wildcard(topic: &str, wildcard: &str) -> bool {
         i += 1;
     }
 
-    return i == wildcard_splited.len();
+    i == wildcard_splited.len()
 }
 
 #[cfg(test)]
