@@ -29,7 +29,7 @@ impl Client {
     pub fn is_subscribed_to(&self, topic: &str) -> bool {
         let mut subscribed: bool = false;
         for topic_aux in &self.topics {
-            if compare_topic(topic, topic_aux) {
+            if compare_topics(topic, topic_aux) {
                 subscribed = true;
             }
         }
