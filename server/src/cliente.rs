@@ -1,3 +1,4 @@
+use crate::wildcard::mqtt_wildcard;
 use std::sync::mpsc::Sender;
 
 pub struct Client {
@@ -29,6 +30,8 @@ impl Client {
         let mut subscribed: bool = false;
         for topico in &self.topics {
             if *topico == *topic {
+                subscribed = true;
+            } else if mqtt_wildcard(topico, topic) {
                 subscribed = true;
             }
         }
