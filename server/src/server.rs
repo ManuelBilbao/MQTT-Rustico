@@ -56,7 +56,7 @@ impl Server {
         tracing_subscriber::fmt()
             .with_writer(non_blocking)
             .with_max_level(Level::TRACE)
-            .json()
+            .with_ansi(false)
             .init();
         info!("Arranca sistema de logs.");
         let address = self.cfg.get_address();
