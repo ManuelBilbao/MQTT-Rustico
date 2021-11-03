@@ -69,10 +69,10 @@ impl From<Packet> for u8 {
 pub fn read_packet(
     client: &mut FlagsCliente,
     packet_type: Packet,
-    buffer: u8,
-    _byte_0: u8,
+    buffer_size: u8,
+    byte_0: u8,
 ) -> Result<(), std::io::Error> {
-    let mut buffer_packet: Vec<u8> = vec![0; buffer as usize];
+    let mut buffer_packet: Vec<u8> = vec![0; buffer_size as usize];
     client.connection.read_exact(&mut buffer_packet)?;
     match packet_type {
         Packet::Connect => {
@@ -88,7 +88,7 @@ pub fn read_packet(
         }
         Packet::Publish => {
             println!("Received Publish package");
-            match make_publication(client, buffer_packet, _byte_0) {
+            match make_publication(client, buffer_packet, byte_0) {
                 Ok(paquete_identifier) => {
                     send_publication_results(client, paquete_identifier);
                 }
@@ -158,7 +158,7 @@ pub fn verify_version_protocol(level: &u8) -> Result<(), u8> {
 
 fn send_connection_result(client: &mut FlagsCliente, result_code: u8, session_present: u8) {
     let mut buffer = [0u8; 4];
-    buffer[0] = 0x20;
+    buffer[0] = Packet::ConnAck.into();
     buffer[1] = 0x02;
     buffer[2] = session_present;
     buffer[3] = result_code;
@@ -180,7 +180,7 @@ fn send_publication_results(client: &mut FlagsCliente, packet_identifier: [u8; 2
 fn make_publication(
     client: &mut FlagsCliente,
     mut buffer_packet: Vec<u8>,
-    _byte_0: u8,
+    byte_0: u8,
 ) -> Result<[u8; 2], String> {
     let topic_size: usize = ((buffer_packet[0] as usize) << 8) + buffer_packet[1] as usize;
     let mut packet_identifier = [0u8; 2];
@@ -188,7 +188,7 @@ fn make_publication(
     packet_identifier[1] = buffer_packet[topic_size + 3];
     buffer_packet.remove(topic_size + 3);
     buffer_packet.remove(topic_size + 2);
-    buffer_packet.insert(0, _byte_0);
+    buffer_packet.insert(0, byte_0);
     let packet_to_server = PacketThings {
         thread_id: client.id,
         packet_type: Packet::Publish,
@@ -216,6 +216,10 @@ fn send_pingresp(client: &mut FlagsCliente) {
 mod tests {
     use super::*;
     use rand::Rng;
+    use std::net::{TcpListener, TcpStream};
+    use std::sync::mpsc::{Receiver, Sender};
+    use std::sync::{mpsc, Arc, Mutex};
+    use std::thread;
 
     #[test]
     fn test01_nombre_protocolo_correto() {
@@ -254,5 +258,52 @@ mod tests {
         let header: u8 = 32;
         let tipo = header.into();
         assert_ne!(matches!(tipo, Packet::Connect), true);
+    }
+
+    #[test]
+    fn test06_publish_pasado_al_coordinador() {
+        let (clients_sender, coordinator_receiver): (Sender<PacketThings>, Receiver<PacketThings>) =
+            mpsc::channel();
+        let mutex_clients_sender = Arc::new(Mutex::new(clients_sender));
+        let client_sender = Arc::clone(&mutex_clients_sender);
+        let listener = TcpListener::bind("127.0.0.1:25525").unwrap();
+        thread::spawn(move || loop {
+            let _connection = listener.accept().unwrap();
+        });
+        let mut client = FlagsCliente {
+            id: 1,
+            client_id: None,
+            connection: &mut TcpStream::connect("127.0.0.1:25525").unwrap(),
+            sender: client_sender,
+            username: None,
+            password: None,
+            will_topic: None,
+            will_message: None,
+            will_qos: 0,
+            will_retained: false,
+            keep_alive: 1000,
+        };
+        let mut buffer_packet: Vec<u8> = Vec::new();
+        let topic_subscribed = "as/tor".to_owned();
+        let mut topic_subscribed_bytes: Vec<u8> = topic_subscribed.as_bytes().to_vec();
+        buffer_packet.push(0);
+        buffer_packet.push(topic_subscribed_bytes.len() as u8);
+        buffer_packet.append(&mut topic_subscribed_bytes);
+        buffer_packet.push(3);
+        buffer_packet.push(4);
+        buffer_packet.push(5);
+        buffer_packet.push(6);
+        buffer_packet.push(7);
+        buffer_packet.push(8);
+        let byte_0: u8 = 0x31;
+        make_publication(&mut client, buffer_packet, byte_0).unwrap();
+        let packet_read = coordinator_receiver.recv().unwrap();
+        assert_eq!(packet_read.thread_id, 1);
+        let buff_read = packet_read.bytes;
+        assert_eq!(buff_read[0], 0x31);
+        assert_eq!(buff_read[2], 6);
+        assert_eq!(buff_read[9], 5);
+        assert_eq!(buff_read[10], 6);
+        assert_eq!(buff_read[12], 8);
     }
 }
