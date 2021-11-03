@@ -1,4 +1,4 @@
-use crate::server::{make_connection, FlagsCliente, PacketThings};
+use crate::server::{make_connection, ClientFlags, PacketThings};
 use std::io::{Read, Write};
 use tracing::{debug, info};
 
@@ -67,7 +67,7 @@ impl From<Packet> for u8 {
 }
 
 pub fn read_packet(
-    client: &mut FlagsCliente,
+    client: &mut ClientFlags,
     packet_type: Packet,
     buffer_size: u8,
     byte_0: u8,
@@ -79,7 +79,8 @@ pub fn read_packet(
             println!("Connect package received");
             match make_connection(client, buffer_packet) {
                 Ok(session_present) => {
-                    send_connection_result(client, SUCCESSFUL_CONNECTION, session_present)
+                    send_connection_result(client, SUCCESSFUL_CONNECTION, session_present);
+                    inform_client_id_to_coordinator(client);
                 }
                 Err(error_code) => {
                     send_connection_result(client, error_code, 0);
@@ -114,7 +115,36 @@ pub fn read_packet(
     Ok(())
 }
 
-fn change_subscription(client: &mut FlagsCliente, buffer_packet: Vec<u8>, tipo: Packet) {
+fn inform_client_id_to_coordinator(client: &mut ClientFlags) {
+    if let Some(client_id) = &client.client_id {
+        let mut bytes: Vec<u8> = client_id.as_bytes().to_vec();
+        let mut buffer_packet: Vec<u8> = Vec::new();
+        buffer_packet.append(&mut bytes);
+        let packet_to_server = PacketThings {
+            thread_id: client.id,
+            packet_type: Packet::Connect,
+            bytes: buffer_packet,
+        };
+        let sender = client.sender.lock();
+        match sender {
+            Ok(sender_ok) => {
+                match sender_ok.send(packet_to_server) {
+                    Ok(_) => {
+                        println!("Success sending client id change to the coordinator thread")
+                    }
+                    Err(_) => {
+                        println!("Error sending client id change to coordinator thread")
+                    }
+                };
+            }
+            Err(_) => {
+                println!("Error reading coordinator channel")
+            }
+        }
+    }
+}
+
+fn change_subscription(client: &mut ClientFlags, buffer_packet: Vec<u8>, tipo: Packet) {
     let packet_to_server = PacketThings {
         thread_id: client.id,
         packet_type: tipo,
@@ -156,7 +186,7 @@ pub fn verify_version_protocol(level: &u8) -> Result<(), u8> {
     Err(CONNECTION_PROTOCOL_REJECTED)
 }
 
-fn send_connection_result(client: &mut FlagsCliente, result_code: u8, session_present: u8) {
+fn send_connection_result(client: &mut ClientFlags, result_code: u8, session_present: u8) {
     let mut buffer = [0u8; 4];
     buffer[0] = Packet::ConnAck.into();
     buffer[1] = 0x02;
@@ -166,7 +196,7 @@ fn send_connection_result(client: &mut FlagsCliente, result_code: u8, session_pr
     client.connection.write_all(&buffer).unwrap();
     println!("Envié el connac");
 }
-fn send_publication_results(client: &mut FlagsCliente, packet_identifier: [u8; 2]) {
+fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]) {
     let mut buffer = [0u8; 4];
     buffer[0] = Packet::PubAck.into();
     buffer[1] = 0x02;
@@ -178,7 +208,7 @@ fn send_publication_results(client: &mut FlagsCliente, packet_identifier: [u8; 2
 }
 
 fn make_publication(
-    client: &mut FlagsCliente,
+    client: &mut ClientFlags,
     mut buffer_packet: Vec<u8>,
     byte_0: u8,
 ) -> Result<[u8; 2], String> {
@@ -204,7 +234,7 @@ fn make_publication(
     }
 }
 
-fn send_pingresp(client: &mut FlagsCliente) {
+fn send_pingresp(client: &mut ClientFlags) {
     let buffer = [Packet::PingResp.into(), 0];
 
     client.connection.write_all(&buffer).unwrap();
@@ -270,7 +300,7 @@ mod tests {
         thread::spawn(move || loop {
             let _connection = listener.accept().unwrap();
         });
-        let mut client = FlagsCliente {
+        let mut client = ClientFlags {
             id: 1,
             client_id: None,
             connection: &mut TcpStream::connect("127.0.0.1:25525").unwrap(),

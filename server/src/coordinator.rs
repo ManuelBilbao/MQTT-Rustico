@@ -14,6 +14,7 @@ pub fn run_coordinator(
         match coordinator_receiver.recv() {
             Ok(mut packet) => {
                 match packet.packet_type {
+                    Packet::Connect => process_client_id(&lock_clients, &mut packet),
                     Packet::Subscribe => {
                         info!("Se recibio un paquete Subscribe.");
                         let vector_with_qos = process_subscribe(&lock_clients, &packet);
@@ -41,6 +42,36 @@ pub fn run_coordinator(
                 }
             }
             Err(_e) => {}
+        }
+    }
+}
+
+fn process_client_id(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &mut PacketThings) {
+    match lock_clients.lock() {
+        Ok(mut locked) => {
+            let mut already_exists = false;
+            let new_client_id = bytes2string(&packet.bytes[0..(packet.bytes.len())]).unwrap();
+            let mut subscriptions: Vec<String> = Vec::new();
+            for i in 0..locked.len() {
+                if locked[i].client_id == new_client_id {
+                    already_exists = true;
+                    subscriptions.append(&mut locked[i].topics);
+                    locked.remove(i);
+                    break;
+                }
+            }
+            for i in 0..locked.len() {
+                if locked[i].thread_id == packet.thread_id {
+                    locked[i].client_id = new_client_id;
+                    if already_exists {
+                        locked[i].topics.append(&mut subscriptions);
+                    }
+                    break;
+                }
+            }
+        }
+        Err(_) => {
+            println!("Imposible acceder al lock desde el cordinador")
         }
     }
 }
@@ -112,7 +143,7 @@ fn send_unsubback(lock_clients: &Arc<Mutex<Vec<Client>>>, packete: PacketThings)
     ];
     match lock_clients.lock() {
         Ok(locked) => {
-            if let Some(index) = locked.iter().position(|r| r.id == packete.thread_id) {
+            if let Some(index) = locked.iter().position(|r| r.thread_id == packete.thread_id) {
                 match locked[index].channel.send(buffer) {
                     Ok(_) => {
                         println!("SubBack enviado.");
@@ -142,7 +173,7 @@ fn unsubscribe_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketTh
         index += topic_size;
         match lock_clients.lock() {
             Ok(mut locked) => {
-                if let Some(indice) = locked.iter().position(|r| r.id == packet.thread_id) {
+                if let Some(indice) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
                     locked[indice].unsubscribe(topico);
                     info!("El cliente se desuscribio del topico.")
                 }
@@ -171,7 +202,7 @@ fn send_subback(
     }
     match lock_clientes.lock() {
         Ok(locked) => {
-            if let Some(index) = locked.iter().position(|r| r.id == packet.thread_id) {
+            if let Some(index) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
                 match locked[index].channel.send(buffer) {
                     Ok(_) => {
                         println!("SubBack enviado");
@@ -204,7 +235,7 @@ fn process_subscribe(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThin
         index += 1;
         match lock_clients.lock() {
             Ok(mut locked) => {
-                if let Some(indice) = locked.iter().position(|r| r.id == packet.thread_id) {
+                if let Some(indice) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
                     locked[indice].subscribe(topic);
                     //TODO: ENVIAR RETAINED SI CORRESPONDE
                     vector_with_qos.push(qos);
@@ -223,6 +254,7 @@ mod tests {
     use std::sync::mpsc;
     use std::sync::mpsc::Sender;
     use std::thread;
+    use std::time;
 
     #[test]
     fn test01_se_realiza_suscripcion_se_publica_el_coordinador_envia_ese_paquete() {
@@ -291,5 +323,49 @@ mod tests {
         assert_eq!(read_back[4], 97);
         assert_eq!(read_back[5], 115);
         println!("{:?}", read_back);
+    }
+
+    #[test]
+    fn test02_se_le_envia_el_mismo_client_id_al_coordinador_y_elimina_el_cliente_auxiliar() {
+        let (channel_1, _c_1): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
+        let (channel_2, _c_2): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
+        let mut client_1 = Client {
+            thread_id: 1,
+            client_id: "Homero".to_owned(),
+            channel: channel_1,
+            topics: Vec::new(),
+        };
+        client_1.subscribe("as/tillero".to_owned());
+        client_1.subscribe("ma/derero".to_owned());
+        let client_2 = Client {
+            thread_id: 2,
+            client_id: "".to_owned(),
+            channel: channel_2,
+            topics: Vec::new(),
+        };
+        let clients: Vec<Client> = vec![client_1, client_2];
+        let lock_clients = Arc::new(Mutex::new(clients));
+        let handler_clients_locks = lock_clients.clone();
+        let (clients_sender, coordinator_receiver): (Sender<PacketThings>, Receiver<PacketThings>) =
+            mpsc::channel();
+        thread::Builder::new()
+            .name("Coordinator".into())
+            .spawn(move || run_coordinator(coordinator_receiver, lock_clients))
+            .unwrap();
+        let mut bytes: Vec<u8> = "Homero".to_owned().as_bytes().to_vec();
+        let mut buffer_packet: Vec<u8> = Vec::new();
+        buffer_packet.append(&mut bytes);
+        let packet_to_server = PacketThings {
+            thread_id: 2,
+            packet_type: Packet::Connect,
+            bytes: buffer_packet,
+        };
+        clients_sender.send(packet_to_server).unwrap();
+        thread::sleep(time::Duration::from_millis(20));
+        let vector = handler_clients_locks.lock().unwrap();
+        assert_eq!(vector.len(), 1);
+        assert_eq!(vector[0].thread_id, 2);
+        assert!(vector[0].is_subscribed_to("as/tillero"));
+        assert!(!vector[0].is_subscribed_to("am/tillero"));
     }
 }

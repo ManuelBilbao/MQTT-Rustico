@@ -2,15 +2,17 @@ use crate::wildcard::compare_topic;
 use std::sync::mpsc::Sender;
 
 pub struct Client {
-    pub id: usize,
+    pub thread_id: usize,
+    pub client_id: String,
     pub channel: Sender<Vec<u8>>,
-    topics: Vec<String>,
+    pub topics: Vec<String>,
 }
 
 impl Client {
-    pub fn new(id: usize, channel: Sender<Vec<u8>>) -> Self {
+    pub fn new(thread_id: usize, channel: Sender<Vec<u8>>) -> Self {
         Client {
-            id,
+            thread_id,
+            client_id: "".to_owned(),
             channel,
             topics: Vec::new(),
         }

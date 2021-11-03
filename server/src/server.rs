@@ -21,7 +21,7 @@ pub struct Server {
     _clients: Vec<Client>, //
 }
 
-pub struct FlagsCliente<'a> {
+pub struct ClientFlags<'a> {
     pub id: usize,
     pub client_id: Option<String>,
     pub connection: &'a mut TcpStream,
@@ -112,7 +112,7 @@ pub fn handle_client(
     client_receiver: Receiver<Vec<u8>>,
 ) {
     let stream_cloned = stream.try_clone().unwrap();
-    let mut current_client = FlagsCliente {
+    let mut current_client = ClientFlags {
         id,
         client_id: None,
         connection: stream,
@@ -134,7 +134,7 @@ pub fn handle_client(
     read_packets_from_client(&mut current_client)
 }
 
-fn read_packets_from_client(mut current_client: &mut FlagsCliente) {
+fn read_packets_from_client(mut current_client: &mut ClientFlags) {
     loop {
         let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
         match current_client.connection.read_exact(&mut num_buffer) {
@@ -175,7 +175,7 @@ pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
     }
 }
 
-pub fn make_connection(client: &mut FlagsCliente, buffer_packet: Vec<u8>) -> Result<u8, u8> {
+pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Result<u8, u8> {
     verify_protocol_name(&buffer_packet)?;
     verify_version_protocol(&buffer_packet[6])?;
 
