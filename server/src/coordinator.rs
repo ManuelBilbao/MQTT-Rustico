@@ -5,10 +5,16 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 
+pub struct RetainedMessage {
+    topic: String,
+    message: Vec<u8>,
+}
+
 pub fn run_coordinator(
     coordinator_receiver: Receiver<PacketThings>,
     lock_clients: Arc<Mutex<Vec<Client>>>,
 ) {
+    let mut retained_messages = Vec::new();
     loop {
         info!("Se lanzado el thread-coordinator");
         match coordinator_receiver.recv() {
@@ -17,7 +23,8 @@ pub fn run_coordinator(
                     Packet::Connect => process_client_id(&lock_clients, &mut packet),
                     Packet::Subscribe => {
                         info!("Se recibio un paquete Subscribe.");
-                        let vector_with_qos = process_subscribe(&lock_clients, &packet);
+                        let vector_with_qos =
+                            process_subscribe(&lock_clients, &packet, &mut retained_messages);
                         send_subback(&lock_clients, packet, vector_with_qos)
                     }
                     Packet::Unsubscribe => {
@@ -30,7 +37,17 @@ pub fn run_coordinator(
                         if topic_name.is_empty() {
                             continue;
                         }
-                        send_publish_to_customer(&lock_clients, &mut packet, &topic_name)
+                        if is_to_retained(&packet) {
+                            let publish_packet =
+                                send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
+                            let new_retained = RetainedMessage {
+                                topic: topic_name,
+                                message: publish_packet,
+                            };
+                            retained_messages.push(new_retained);
+                        } else {
+                            send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
+                        }
                     }
                     _ => {
                         debug!("Se recibio un paquete desconocido.")
@@ -44,6 +61,10 @@ pub fn run_coordinator(
             Err(_e) => {}
         }
     }
+}
+
+fn is_to_retained(packet: &PacketThings) -> bool {
+    (packet.bytes[0] & 0x01) == 1
 }
 
 fn process_client_id(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &mut PacketThings) {
@@ -80,16 +101,17 @@ fn send_publish_to_customer(
     lock_clients: &Arc<Mutex<Vec<Client>>>,
     packet: &mut PacketThings,
     topic_name: &str,
-) {
+) -> Vec<u8> {
     packet.bytes.remove(0);
+    let mut buffer_packet: Vec<u8> = vec![Packet::Publish.into(), packet.bytes.len() as u8];
+    buffer_packet.extend(&packet.bytes);
     match lock_clients.lock() {
         Ok(locked) => {
             for client in locked.iter() {
                 if client.is_subscribed_to(topic_name) {
-                    let mut buffer_packet: Vec<u8> =
-                        vec![Packet::Publish.into(), packet.bytes.len() as u8];
-                    buffer_packet.append(&mut packet.bytes);
-                    match client.channel.send(buffer_packet) {
+                    let mut buffer_to_send: Vec<u8> = Vec::new();
+                    buffer_to_send.extend(&buffer_packet);
+                    match client.channel.send(buffer_to_send) {
                         Ok(_) => {
                             println!("Publish enviado al cliente")
                         }
@@ -104,10 +126,11 @@ fn send_publish_to_customer(
             println!("Imposible acceder al lock desde el cordinador")
         }
     }
+    buffer_packet
 }
 
 fn process_publish(packet: &mut PacketThings) -> String {
-    let _byte_0 = packet.bytes[0]; //TODO Retained & qos
+    let _byte_0 = packet.bytes[0]; //TODO qos
     let size = packet.bytes.len();
     let topic_name_len: usize = ((packet.bytes[1] as usize) << 8) + packet.bytes[2] as usize;
     let mut topic_name = String::from("");
@@ -130,7 +153,6 @@ fn process_publish(packet: &mut PacketThings) -> String {
             }
         }
     }
-    //TODO: AGREGAR RETAINED ACA
     topic_name
 }
 
@@ -222,7 +244,11 @@ fn send_subback(
     }
 }
 
-fn process_subscribe(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThings) -> Vec<u8> {
+fn process_subscribe(
+    lock_clients: &Arc<Mutex<Vec<Client>>>,
+    packet: &PacketThings,
+    retained_messages: &mut Vec<RetainedMessage>,
+) -> Vec<u8> {
     let mut index = 2;
     let mut vector_with_qos: Vec<u8> = Vec::new();
     while index < (packet.bytes.len() - 2) {
@@ -236,8 +262,21 @@ fn process_subscribe(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThin
         match lock_clients.lock() {
             Ok(mut locked) => {
                 if let Some(indice) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
-                    locked[indice].subscribe(topic);
-                    //TODO: ENVIAR RETAINED SI CORRESPONDE
+                    locked[indice].subscribe(topic.clone());
+                    if let Some(indice_retained) =
+                        retained_messages.iter().position(|r| r.topic == topic)
+                    {
+                        let mut buffer_to_send: Vec<u8> = Vec::new();
+                        buffer_to_send.extend(&retained_messages[indice_retained].message);
+                        match locked[indice].channel.send(buffer_to_send) {
+                            Ok(_) => {
+                                println!("Publish enviado al cliente")
+                            }
+                            Err(_) => {
+                                println!("Error al enviar Publish al cliente")
+                            }
+                        }
+                    }
                     vector_with_qos.push(qos);
                     info!("El cliente se subscribio al topico")
                 }
