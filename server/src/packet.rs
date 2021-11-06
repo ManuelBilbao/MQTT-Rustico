@@ -1,5 +1,6 @@
 use crate::server::{make_connection, ClientFlags, PacketThings};
 use std::io::{Read, Write};
+use std::net::Shutdown;
 use tracing::{debug, info};
 
 const MQTT_VERSION: u8 = 4;
@@ -107,12 +108,35 @@ pub fn read_packet(
         Packet::PingReq => {
             send_pingresp(client);
         }
+        Packet::Disconnect => {
+            //TODO will message
+            println!("Me llego un disconnect");
+            close_stream(client);
+        }
         _ => {
             println!("Received unknown package");
         }
     }
 
     Ok(())
+}
+
+fn close_stream(client: &mut ClientFlags) {
+    let mut buffer = Vec::new();
+    let aux = client.connection.read_to_end(&mut buffer);
+
+    match aux {
+        Ok(0) => {
+            println!("El cliente ya habia cerrado el stream");
+        }
+        _ => {
+            client
+                .connection
+                .shutdown(Shutdown::Both)
+                .expect("shutdown call failed");
+            println!("Cerre el stream con el cliente");
+        }
+    }
 }
 
 fn inform_client_id_to_coordinator(client: &mut ClientFlags) {
