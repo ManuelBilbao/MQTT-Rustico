@@ -1,7 +1,11 @@
-use crate::packet::{read_package, send_package_connection};
+use crate::packet::{_send_disconnect_packet, read_package, send_packet_connection};
+use core::sync::atomic::Ordering;
 use std::env::args;
 use std::io::Read;
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
+use std::process::exit;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::thread;
 
 mod packet;
@@ -72,14 +76,21 @@ fn client_run(address: &str) -> std::io::Result<()> {
         will_qos: 1,
         keep_alive: 100,
     };
-    send_package_connection(&mut stream, flags, user_information);
+    send_packet_connection(&mut stream, flags, user_information);
     //thread spawn leer del servidor
     let mut read_stream = stream.try_clone().unwrap();
+    let signal = Arc::new(AtomicBool::new(false));
+    let signal_clone = signal; //agregar el .clone(cuando se descomente el disconnect) -> signal.clone();
+
     let a = thread::spawn(move || {
         loop {
             let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
-
-            match stream.read_exact(&mut num_buffer) {
+            if signal_clone.load(Ordering::Relaxed) {
+                //Cerre el stream
+                println!("Ya se cerro el stream!");
+                exit(0);
+            }
+            match read_stream.read_exact(&mut num_buffer) {
                 Ok(_) => {
                     let package_type = num_buffer[0].into();
                     read_package(&mut read_stream, package_type, num_buffer[1]).unwrap();
@@ -90,6 +101,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
             }
         }
     });
+    //disconnect(&mut stream, signal); //descomentar cuando server sepa recibir un disconnect
     //ENVIA COSAS al sv
     a.join().unwrap();
     /*
@@ -122,7 +134,7 @@ fn create_byte_with_flags(flags: &FlagsConexion, will_qos: &u8) -> u8 {
     byte_flags
 }
 
-fn calcular_longitud_conexion(flags: &FlagsConexion, user_information: &UserInformation) -> u8 {
+fn calculate_connection_length(flags: &FlagsConexion, user_information: &UserInformation) -> u8 {
     let mut lenght: u8 = 12;
     lenght += user_information.id_length as u8;
     if flags.username {
@@ -136,6 +148,16 @@ fn calcular_longitud_conexion(flags: &FlagsConexion, user_information: &UserInfo
             (user_information.will_topic_length + user_information.will_message_length + 4) as u8;
     }
     lenght
+}
+
+fn _disconnect(stream: &mut TcpStream, signal: Arc<AtomicBool>) {
+    _send_disconnect_packet(stream);
+    stream
+        .shutdown(Shutdown::Both)
+        .expect("shutdown call failed");
+    signal.store(true, Ordering::Relaxed);
+    println!("Me desconecte con exito!");
+    exit(0);
 }
 
 #[cfg(test)]

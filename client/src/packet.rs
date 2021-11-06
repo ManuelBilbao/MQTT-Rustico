@@ -1,4 +1,4 @@
-use crate::{calcular_longitud_conexion, create_byte_with_flags, FlagsConexion, UserInformation};
+use crate::{calculate_connection_length, create_byte_with_flags, FlagsConexion, UserInformation};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
@@ -122,12 +122,12 @@ pub fn read_pingresp() {
     // TODO: Do something
 }
 
-pub fn send_package_connection(
+pub fn send_packet_connection(
     stream: &mut TcpStream,
     flags: FlagsConexion,
     user_information: UserInformation,
 ) {
-    let total_lenght: u8 = calcular_longitud_conexion(&flags, &user_information);
+    let total_lenght: u8 = calculate_connection_length(&flags, &user_information);
     let mut buffer: Vec<u8> = Vec::with_capacity(total_lenght.into());
     buffer.push(0x10);
     buffer.push(total_lenght as u8);
@@ -187,7 +187,7 @@ pub fn send_package_connection(
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_subscribe_package(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
     let mut buffer: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
@@ -203,7 +203,7 @@ pub fn _send_subscribe_package(stream: &mut TcpStream, topics: Vec<String>) {
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_unsubscribe_package(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn _send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
     let mut buffer: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
@@ -218,7 +218,7 @@ pub fn _send_unsubscribe_package(stream: &mut TcpStream, topics: Vec<String>) {
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_publish_package(stream: &mut TcpStream, topic: String, message: String, dup: bool) {
+pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: String, dup: bool) {
     let mut buffer: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
     buffer.append(&mut topic.as_bytes().to_vec());
 
@@ -238,7 +238,12 @@ pub fn _send_publish_package(stream: &mut TcpStream, topic: String, message: Str
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_pingreq_package(stream: &mut TcpStream) {
+pub fn _send_pingreq_packet(stream: &mut TcpStream) {
     let buffer = [Packet::PingReq.into(), 0_u8];
+    stream.write_all(&buffer).unwrap();
+}
+
+pub fn _send_disconnect_packet(stream: &mut TcpStream) {
+    let buffer = [Packet::Disconnect.into(), 0_u8];
     stream.write_all(&buffer).unwrap();
 }
