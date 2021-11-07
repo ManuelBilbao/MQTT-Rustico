@@ -103,8 +103,6 @@ impl Server {
     }
 }
 
-///////////////////////a partir de aca puede ser que lo movamos o renombremos (para mi va aca pero renombrado)
-
 pub fn handle_client(
     id: usize,
     stream: &mut TcpStream,
@@ -150,7 +148,7 @@ fn read_packets_from_client(mut current_client: &mut ClientFlags) {
                 .unwrap();
             }
             Err(_) => {
-                println!("Error");
+                println!("El cliente de desconecto y cerro el stream.");
                 break;
             }
         }

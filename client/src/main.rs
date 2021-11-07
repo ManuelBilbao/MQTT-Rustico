@@ -7,6 +7,7 @@ use std::process::exit;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 mod packet;
 
@@ -80,7 +81,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
     //thread spawn leer del servidor
     let mut read_stream = stream.try_clone().unwrap();
     let signal = Arc::new(AtomicBool::new(false));
-    let signal_clone = signal; //agregar el .clone(cuando se descomente el disconnect) -> signal.clone();
+    let signal_clone = signal.clone(); //agregar el .clone(cuando se descomente el disconnect) -> signal.clone();
 
     let a = thread::spawn(move || {
         loop {
@@ -101,7 +102,8 @@ fn client_run(address: &str) -> std::io::Result<()> {
             }
         }
     });
-    //disconnect(&mut stream, signal); //descomentar cuando server sepa recibir un disconnect
+    thread::sleep(Duration::from_millis(100));
+    disconnect(&mut stream, signal);
     //ENVIA COSAS al sv
     a.join().unwrap();
     /*
@@ -150,7 +152,7 @@ fn calculate_connection_length(flags: &FlagsConexion, user_information: &UserInf
     lenght
 }
 
-fn _disconnect(stream: &mut TcpStream, signal: Arc<AtomicBool>) {
+fn disconnect(stream: &mut TcpStream, signal: Arc<AtomicBool>) {
     _send_disconnect_packet(stream);
     stream
         .shutdown(Shutdown::Both)

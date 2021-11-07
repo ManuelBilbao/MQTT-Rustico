@@ -49,6 +49,10 @@ pub fn run_coordinator(
                             send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
                         }
                     }
+                    Packet::Disconnect => {
+                        info!("Se recibio un paquete Disconnect.");
+                        close_process(&lock_clients, &packet);
+                    }
                     _ => {
                         debug!("Se recibio un paquete desconocido.")
                     }
@@ -59,6 +63,23 @@ pub fn run_coordinator(
                 }
             }
             Err(_e) => {}
+        }
+    }
+}
+
+fn close_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThings) {
+    match lock_clients.lock() {
+        Ok(mut locked) => {
+            let new_client_id = bytes2string(&packet.bytes[0..(packet.bytes.len())]).unwrap();
+            for i in 0..locked.len() {
+                if locked[i].client_id == new_client_id {
+                    locked.remove(i);
+                    break;
+                }
+            }
+        }
+        Err(_) => {
+            println!("Imposible acceder al lock desde el cordinador")
         }
     }
 }

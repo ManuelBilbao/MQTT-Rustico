@@ -111,7 +111,8 @@ pub fn read_packet(
         Packet::Disconnect => {
             //TODO will message
             println!("Me llego un disconnect");
-            close_stream(client);
+            inform_client_disconnect_to_coordinator(client, buffer_packet, Packet::Disconnect);
+            close_streams(client);
         }
         _ => {
             println!("Received unknown package");
@@ -121,7 +122,35 @@ pub fn read_packet(
     Ok(())
 }
 
-fn close_stream(client: &mut ClientFlags) {
+fn inform_client_disconnect_to_coordinator(
+    client: &mut ClientFlags,
+    buffer_packet: Vec<u8>,
+    tipo: Packet,
+) {
+    let packet_to_server = PacketThings {
+        thread_id: client.id,
+        packet_type: tipo,
+        bytes: buffer_packet,
+    };
+    let sender = client.sender.lock();
+    match sender {
+        Ok(sender_ok) => {
+            match sender_ok.send(packet_to_server) {
+                Ok(_) => {
+                    println!("Success sending disconnect to coordinator thread")
+                }
+                Err(_) => {
+                    println!("Error sending sending disconnect to coordinator thread")
+                }
+            };
+        }
+        Err(_) => {
+            println!("Error reading coordinator channel")
+        }
+    }
+}
+
+fn close_streams(client: &mut ClientFlags) {
     let mut buffer = Vec::new();
     let aux = client.connection.read_to_end(&mut buffer);
 
@@ -137,6 +166,8 @@ fn close_stream(client: &mut ClientFlags) {
             println!("Cerre el stream con el cliente");
         }
     }
+    drop(client.sender.lock().unwrap());
+    println!("Cerre el stream con el coordinator!");
 }
 
 fn inform_client_id_to_coordinator(client: &mut ClientFlags) {
