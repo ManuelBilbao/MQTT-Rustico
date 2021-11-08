@@ -6,6 +6,7 @@ pub struct Client {
     pub client_id: String,
     pub channel: Sender<Vec<u8>>,
     pub topics: Vec<String>,
+    pub publishes_received: Vec<Vec<u8>>,
 }
 
 impl Client {
@@ -15,6 +16,7 @@ impl Client {
             client_id: "".to_owned(),
             channel,
             topics: Vec::new(),
+            publishes_received: Vec::new(),
         }
     }
 

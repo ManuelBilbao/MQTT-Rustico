@@ -114,6 +114,10 @@ pub fn read_packet(
             inform_client_disconnect_to_coordinator(client, buffer_packet, Packet::Disconnect);
             close_streams(client);
         }
+        Packet::PubAck => {
+            remove_from_client_publishes(client, buffer_packet);
+            println!("Puback recibido del cliente");
+        }
         _ => {
             println!("Received unknown package");
         }
@@ -271,8 +275,6 @@ fn make_publication(
     let mut packet_identifier = [0u8; 2];
     packet_identifier[0] = buffer_packet[topic_size + 2];
     packet_identifier[1] = buffer_packet[topic_size + 3];
-    buffer_packet.remove(topic_size + 3);
-    buffer_packet.remove(topic_size + 2);
     buffer_packet.insert(0, byte_0);
     let packet_to_server = PacketThings {
         thread_id: client.id,
@@ -286,6 +288,19 @@ fn make_publication(
             Err(_) => Err("error".to_owned()),
         },
         Err(_) => Err("error".to_owned()),
+    }
+}
+
+fn remove_from_client_publishes(client: &mut ClientFlags, buffer_packet: Vec<u8>) {
+    let packet_to_server = PacketThings {
+        thread_id: client.id,
+        packet_type: Packet::PubAck,
+        bytes: buffer_packet,
+    };
+    let sender = client.sender.lock();
+    match sender {
+        Ok(sender_ok) => sender_ok.send(packet_to_server).unwrap(),
+        Err(_) => println!("error"),
     }
 }
 
@@ -387,8 +402,9 @@ mod tests {
         let buff_read = packet_read.bytes;
         assert_eq!(buff_read[0], 0x31);
         assert_eq!(buff_read[2], 6);
-        assert_eq!(buff_read[9], 5);
-        assert_eq!(buff_read[10], 6);
-        assert_eq!(buff_read[12], 8);
+        assert_eq!(buff_read[9], 3);
+        assert_eq!(buff_read[10], 4);
+        assert_eq!(buff_read[12], 6);
+        assert_eq!(buff_read[14], 8);
     }
 }

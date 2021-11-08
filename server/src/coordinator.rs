@@ -49,6 +49,9 @@ pub fn run_coordinator(
                             send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
                         }
                     }
+                    Packet::PubAck => {
+                        remove_publishes(&lock_clients, &mut packet);
+                    }
                     Packet::Disconnect => {
                         info!("Se recibio un paquete Disconnect.");
                         close_process(&lock_clients, &packet);
@@ -80,6 +83,29 @@ fn close_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThings) 
         }
         Err(_) => {
             println!("Imposible acceder al lock desde el cordinador")
+        }
+    }
+}
+
+fn remove_publishes(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &mut PacketThings) {
+    let puback_packet_identifier = ((packet.bytes[0] as u16) << 8) + packet.bytes[1] as u16;
+    match lock_clients.lock() {
+        Ok(mut locked) => {
+            if let Some(indice) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
+                if let Some(indice2) = locked[indice].publishes_received.iter().position(|r| {
+                    let topic_name_len: usize = ((r[2] as usize) << 8) + r[3] as usize;
+                    let publish_packet_identifier =
+                        ((r[topic_name_len + 4] as u16) << 8) + r[topic_name_len + 5] as u16;
+                    publish_packet_identifier == puback_packet_identifier
+                }) {
+                    println!("eliminado publish del vector");
+                    locked[indice].publishes_received.remove(indice2);
+                }
+            }
+        }
+        Err(_) => {
+            println!("Error al intentar eliminar un publish.");
+            warn!("Error al intentar eliminar un publish.")
         }
     }
 }
@@ -127,14 +153,16 @@ fn send_publish_to_customer(
     let mut buffer_packet: Vec<u8> = vec![Packet::Publish.into(), packet.bytes.len() as u8];
     buffer_packet.extend(&packet.bytes);
     match lock_clients.lock() {
-        Ok(locked) => {
-            for client in locked.iter() {
-                if client.is_subscribed_to(topic_name) {
+        Ok(mut locked) => {
+            for i in 0..locked.len() {
+                if locked[i].is_subscribed_to(topic_name) {
                     let mut buffer_to_send: Vec<u8> = Vec::new();
                     buffer_to_send.extend(&buffer_packet);
-                    match client.channel.send(buffer_to_send) {
+                    let buffer_clone = buffer_to_send.clone();
+                    match locked[i].channel.send(buffer_to_send) {
                         Ok(_) => {
-                            println!("Publish enviado al cliente")
+                            println!("Publish enviado al cliente");
+                            locked[i].publishes_received.push(buffer_clone);
                         }
                         Err(_) => {
                             println!("Error al enviar Publish al cliente")
@@ -394,6 +422,7 @@ mod tests {
             client_id: "Homero".to_owned(),
             channel: channel_1,
             topics: Vec::new(),
+            publishes_received: Vec::new(),
         };
         client_1.subscribe("as/tillero".to_owned());
         client_1.subscribe("ma/derero".to_owned());
@@ -402,6 +431,7 @@ mod tests {
             client_id: "".to_owned(),
             channel: channel_2,
             topics: Vec::new(),
+            publishes_received: Vec::new(),
         };
         let clients: Vec<Client> = vec![client_1, client_2];
         let lock_clients = Arc::new(Mutex::new(clients));
