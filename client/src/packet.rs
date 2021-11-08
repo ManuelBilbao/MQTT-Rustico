@@ -67,6 +67,7 @@ pub fn read_package(
     buffer: u8,
 ) -> Result<(), std::io::Error> {
     let mut buffer_paquete: Vec<u8> = vec![0; buffer as usize];
+    let mut stream_clone = stream.try_clone().unwrap();
     stream.read_exact(&mut buffer_paquete)?;
     match package_type {
         Packet::ConnAck => read_connack(buffer_paquete),
@@ -74,6 +75,7 @@ pub fn read_package(
         Packet::SubAck => read_suback(buffer_paquete),
         Packet::UnsubAck => read_unsuback(buffer_paquete),
         Packet::PingResp => read_pingresp(),
+        Packet::Publish => read_publish(buffer_paquete, &mut stream_clone),
         _ => {
             // Manejar
             println!("No se que paqeute es");
@@ -120,6 +122,37 @@ pub fn read_unsuback(buffer: Vec<u8>) {
 pub fn read_pingresp() {
     // PingResp viene vacio
     // TODO: Do something
+}
+pub fn read_publish(buffer: Vec<u8>, stream: &mut TcpStream) {
+    println!("Recibí un mensaje");
+    let topic_name_len: usize = ((buffer[0] as usize) << 8) + buffer[1] as usize;
+    match bytes2string(&buffer[2..(2 + topic_name_len)]) {
+        Ok(topic_name) => {
+            println!("Topico del mensaje: {}", topic_name);
+        }
+        Err(_) => {
+            println!("Error procesando topico");
+        }
+    }
+    match bytes2string(&buffer[(4 + topic_name_len)..buffer.len()]) {
+        Ok(message) => {
+            println!("Mensaje: {}", message);
+        }
+        Err(_) => {
+            println!("Error procesando mensaje");
+        }
+    }
+    let mut packet_identifier = [0u8; 2];
+    packet_identifier[0] = buffer[topic_name_len + 2];
+    packet_identifier[1] = buffer[topic_name_len + 3];
+    send_puback_packet(stream, packet_identifier);
+}
+
+pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
+    match std::str::from_utf8(bytes) {
+        Ok(str) => Ok(str.to_owned()),
+        Err(_) => Err(1),
+    }
 }
 
 pub fn send_packet_connection(
@@ -222,8 +255,8 @@ pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: Stri
     let mut buffer: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
     buffer.append(&mut topic.as_bytes().to_vec());
 
-    buffer.push(0x00); // Packet identifier, TODO: parametrizar
-    buffer.push(0x00);
+    buffer.push(0x01); // Packet identifier, TODO: parametrizar
+    buffer.push(0x02);
 
     buffer.append(&mut message.as_bytes().to_vec());
 
@@ -240,6 +273,17 @@ pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: Stri
 
 pub fn _send_pingreq_packet(stream: &mut TcpStream) {
     let buffer = [Packet::PingReq.into(), 0_u8];
+    stream.write_all(&buffer).unwrap();
+}
+
+pub fn send_puback_packet(stream: &mut TcpStream, packet_identifier: [u8; 2]) {
+    let mut buffer = [0u8; 4];
+    buffer[0] = Packet::PubAck.into();
+    buffer[1] = 0x02;
+    buffer[2] = packet_identifier[0];
+    buffer[3] = packet_identifier[1];
+
+    println!("envié puback");
     stream.write_all(&buffer).unwrap();
 }
 
