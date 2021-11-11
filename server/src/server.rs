@@ -1,13 +1,17 @@
 use crate::client::Client;
 use crate::configuration::Configuration;
 use crate::coordinator::run_coordinator;
-use crate::packet::{read_packet, verify_protocol_name, verify_version_protocol, Packet};
+use crate::packet::{
+    inform_client_disconnect_to_coordinator, read_packet, verify_protocol_name,
+    verify_version_protocol, Packet,
+};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use tracing::{debug, info, Level};
+use std::time::Duration;
+use tracing::{debug, error, info, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 const CONNECTION_IDENTIFIER_REFUSED: u8 = 2;
@@ -148,7 +152,12 @@ fn read_packets_from_client(mut current_client: &mut ClientFlags) {
                 .unwrap();
             }
             Err(_) => {
-                println!("El cliente de desconecto y cerro el stream.");
+                inform_client_disconnect_to_coordinator(
+                    current_client,
+                    Vec::new(),
+                    Packet::Disconnect,
+                );
+                println!("El cliente se desconecto y cerro el stream.");
                 break;
             }
         }
@@ -241,6 +250,17 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
 
     if flag_will_retain && flag_will_qos == 2 {
         //
+    }
+
+    if keep_alive > 0 {
+        let wait = (f32::from(keep_alive) * 1.5) as u64;
+        if client
+            .connection
+            .set_read_timeout(Some(Duration::new(wait, 0)))
+            .is_err()
+        {
+            error!("Error al establecer el tiempo límite de espera para un cliente")
+        }
     }
 
     client.client_id = client_id;

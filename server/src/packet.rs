@@ -126,7 +126,7 @@ pub fn read_packet(
     Ok(())
 }
 
-fn inform_client_disconnect_to_coordinator(
+pub fn inform_client_disconnect_to_coordinator(
     client: &mut ClientFlags,
     buffer_packet: Vec<u8>,
     tipo: Packet,
