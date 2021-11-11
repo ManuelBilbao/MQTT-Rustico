@@ -1,6 +1,6 @@
 use crate::client::Client;
-use crate::packet::Packet;
-use crate::server::{bytes2string, PacketThings};
+use crate::packet::{bytes2string, Packet};
+use crate::server::PacketThings;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};

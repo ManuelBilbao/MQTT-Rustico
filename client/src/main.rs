@@ -57,8 +57,8 @@ fn client_run(address: &str) -> std::io::Result<()> {
     socket.write(&size_be)?;
     socket.write(&frase.as_bytes())?;*/
     let flags = FlagsConexion {
-        username: false,
-        password: false,
+        username: true,
+        password: true,
         will_retain: false,
         will_flag: false,
         clean_session: false,
@@ -66,10 +66,10 @@ fn client_run(address: &str) -> std::io::Result<()> {
     let user_information = UserInformation {
         id_length: 1,
         id: "2".to_owned(),
-        username_length: 0,
-        username: None,
-        password_length: 0,
-        password: None,
+        username_length: 6,
+        username: Some("franco".to_owned()),
+        password_length: 6,
+        password: Some("123pop".to_owned()),
         will_topic_length: 0,
         will_topic: None,
         will_message_length: 0,
@@ -102,7 +102,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
             }
         }
     });
-    thread::sleep(Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(1000000));
     disconnect(&mut stream, signal);
     //ENVIA COSAS al sv
     a.join().unwrap();
@@ -118,20 +118,20 @@ fn client_run(address: &str) -> std::io::Result<()> {
 fn create_byte_with_flags(flags: &FlagsConexion, will_qos: &u8) -> u8 {
     let mut byte_flags: u8 = 0;
     if flags.username {
-        byte_flags &= 0x80;
+        byte_flags |= 0x80;
     }
     if flags.password {
-        byte_flags &= 0x40;
+        byte_flags |= 0x40;
     }
     if flags.will_retain {
-        byte_flags &= 0x20;
+        byte_flags |= 0x20;
     }
-    byte_flags &= (will_qos << 3) & 0x18;
+    byte_flags |= (will_qos << 3) & 0x18;
     if flags.will_flag {
-        byte_flags &= 0x04;
+        byte_flags |= 0x04;
     }
     if flags.clean_session {
-        byte_flags &= 0x02;
+        byte_flags |= 0x02;
     }
     byte_flags
 }

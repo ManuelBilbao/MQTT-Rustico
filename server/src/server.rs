@@ -1,28 +1,18 @@
 use crate::client::Client;
 use crate::configuration::Configuration;
 use crate::coordinator::run_coordinator;
-use crate::packet::{
-    inform_client_disconnect_to_coordinator, read_packet, verify_protocol_name,
-    verify_version_protocol, Packet,
-};
+use crate::packet::{inform_client_disconnect_to_coordinator, read_packet, Packet};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
-use tracing::{debug, error, info, Level};
+use tracing::{debug, info, Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-
-const CONNECTION_IDENTIFIER_REFUSED: u8 = 2;
-const _CONNECTION_PROTOCOL_REJECTED: u8 = 1;
-const INCORRECT_SERVER_CONNECTION: u8 = 1;
-const _SUCCESSFUL_CONNECTION: u8 = 0;
 
 pub struct Server {
     //
     cfg: Configuration,
-    _clients: Vec<Client>, //
 }
 
 pub struct ClientFlags<'a> {
@@ -49,10 +39,7 @@ impl Server {
     pub fn new(file_path: &str) -> Self {
         let mut config = Configuration::new();
         let _aux = config.set_config(file_path); //Manejar
-        Server {
-            cfg: config,
-            _clients: Vec::new(),
-        }
+        Server { cfg: config }
     }
 
     pub fn run(&self) -> std::io::Result<()> {
@@ -173,104 +160,4 @@ fn send_packets_to_client(client_receiver: Receiver<Vec<u8>>, mut stream_cloned:
             Err(_er) => {}
         }
     }
-}
-
-pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
-    match std::str::from_utf8(bytes) {
-        Ok(str) => Ok(str.to_owned()),
-        Err(_) => Err(INCORRECT_SERVER_CONNECTION),
-    }
-}
-
-pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Result<u8, u8> {
-    verify_protocol_name(&buffer_packet)?;
-    verify_version_protocol(&buffer_packet[6])?;
-
-    let flag_username = buffer_packet[7] & 0x80 == 0x80;
-    let flag_password = buffer_packet[7] & 0x40 == 0x40;
-    let flag_will_retain = buffer_packet[7] & 0x20 == 0x20;
-    let flag_will_qos = (buffer_packet[7] & 0x18) >> 3;
-    let flag_will_flag = buffer_packet[7] & 0x04 == 0x04;
-    let flag_clean_session = buffer_packet[7] & 0x02 == 0x02;
-
-    let keep_alive: u16 = ((buffer_packet[8] as u16) << 8) + buffer_packet[9] as u16;
-
-    let size_client_id: usize = ((buffer_packet[10] as usize) << 8) + buffer_packet[11] as usize;
-
-    let client_id = Some(bytes2string(&buffer_packet[12..12 + size_client_id])?); // En UTF-8
-
-    let mut index: usize = (12 + size_client_id) as usize;
-
-    // Atajar si tamanio_x = 0
-    let mut will_topic = None;
-    let mut will_message = None;
-    if flag_will_flag {
-        let size_will_topic: usize =
-            ((buffer_packet[index] as usize) << 8) + buffer_packet[(index + 1)] as usize;
-        index += 2_usize;
-        will_topic = Some(bytes2string(
-            &buffer_packet[index..(index + size_will_topic)],
-        )?);
-        index += size_will_topic;
-
-        let size_will_message: usize =
-            ((buffer_packet[index] as usize) << 8) + buffer_packet[(index + 1) as usize] as usize;
-        index += 2_usize;
-        will_message = Some(bytes2string(
-            &buffer_packet[index..(index + size_will_message)],
-        )?);
-        index += size_will_message;
-    }
-
-    let mut username: Option<String> = None;
-    if flag_username {
-        let size_username: usize =
-            ((buffer_packet[index] as usize) << 8) + buffer_packet[(index + 1) as usize] as usize;
-        index += 2_usize;
-        username = Some(bytes2string(
-            &buffer_packet[index..(index + size_username)],
-        )?);
-        index += size_username;
-    }
-
-    let mut password: Option<String> = None;
-    if flag_password {
-        let size_password: usize =
-            ((buffer_packet[index] as usize) << 8) + buffer_packet[(index + 1) as usize] as usize;
-        index += 2_usize;
-        password = Some(bytes2string(
-            &buffer_packet[index..(index + size_password)],
-        )?);
-    }
-
-    //PROCESAR
-    if client_id == None && !flag_clean_session {
-        return Err(CONNECTION_IDENTIFIER_REFUSED);
-    }
-
-    if flag_will_retain && flag_will_qos == 2 {
-        //
-    }
-
-    if keep_alive > 0 {
-        let wait = (f32::from(keep_alive) * 1.5) as u64;
-        if client
-            .connection
-            .set_read_timeout(Some(Duration::new(wait, 0)))
-            .is_err()
-        {
-            error!("Error al establecer el tiempo límite de espera para un cliente")
-        }
-    }
-
-    client.client_id = client_id;
-    client.username = username;
-    client.password = password;
-    client.will_topic = will_topic;
-    client.will_message = will_message;
-    client.will_qos = flag_will_qos;
-    client.will_retained = flag_will_retain;
-    client.keep_alive = keep_alive;
-
-    Ok(1) // TODO: Persistent Sessions
 }
