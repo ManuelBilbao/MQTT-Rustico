@@ -1,4 +1,3 @@
-use crate::packet::{_send_disconnect_packet, read_package, send_packet_connection};
 use core::sync::atomic::Ordering;
 use std::env::args;
 use std::io::Read;
@@ -7,7 +6,12 @@ use std::process::exit;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread;
+use std::thread::sleep;
 use std::time::Duration;
+
+use crate::packet::{
+    _send_disconnect_packet, read_package, send_packet_connection, send_pingreq_packet,
+};
 
 mod packet;
 
@@ -52,6 +56,7 @@ fn main() -> Result<(), ()> {
 
 fn client_run(address: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(address)?;
+    let keep_alive = 100;
     /*let frase = "Hola quiero conectarme".to_string();
     let size_be = (frase.len() as u32).to_be_bytes();
     socket.write(&size_be)?;
@@ -75,7 +80,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
         will_message_length: 0,
         will_message: None,
         will_qos: 1,
-        keep_alive: 100,
+        keep_alive,
     };
     send_packet_connection(&mut stream, flags, user_information);
     //thread spawn leer del servidor
@@ -84,6 +89,11 @@ fn client_run(address: &str) -> std::io::Result<()> {
     let signal_clone = signal.clone(); //agregar el .clone(cuando se descomente el disconnect) -> signal.clone();
 
     let a = thread::spawn(move || {
+        let mut pingreq_stream = read_stream.try_clone().unwrap();
+        thread::spawn(move || loop {
+            send_pingreq_packet(&mut pingreq_stream);
+            sleep(Duration::from_secs(keep_alive.into()));
+        });
         loop {
             let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
             if signal_clone.load(Ordering::Relaxed) {

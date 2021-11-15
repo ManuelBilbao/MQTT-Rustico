@@ -271,7 +271,7 @@ pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: Stri
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_pingreq_packet(stream: &mut TcpStream) {
+pub fn send_pingreq_packet(stream: &mut TcpStream) {
     let buffer = [Packet::PingReq.into(), 0_u8];
     stream.write_all(&buffer).unwrap();
 }
