@@ -2,6 +2,7 @@ use crate::client::Client;
 use crate::configuration::Configuration;
 use crate::coordinator::run_coordinator;
 use crate::packet::{inform_client_disconnect_to_coordinator, read_packet, Packet};
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender};
@@ -55,7 +56,7 @@ impl Server {
         debug!("IP: {}", &address); //
         println!("IP: {}", &address); //
 
-        let clients: Vec<Client> = Vec::new();
+        let clients: HashMap<usize, Client> = HashMap::new();
         let lock_clients = Arc::new(Mutex::new(clients));
         let handler_clients_locks = lock_clients.clone();
         let (clients_sender, coordinator_receiver): (Sender<PacketThings>, Receiver<PacketThings>) =
@@ -69,10 +70,10 @@ impl Server {
 
     fn wait_new_clients(
         address: &str,
-        handler_clients_lock: Arc<Mutex<Vec<Client>>>,
+        handler_clients_lock: Arc<Mutex<HashMap<usize, Client>>>,
         clients_sender: &Arc<Mutex<Sender<PacketThings>>>,
     ) -> std::io::Result<()> {
-        let mut index: usize = 0;
+        let mut index: usize = 1;
         loop {
             let listener = TcpListener::bind(&address)?;
             let connection = listener.accept()?;
@@ -81,7 +82,10 @@ impl Server {
                 mpsc::channel();
             let client_sender = Arc::clone(clients_sender);
             let client: Client = Client::new(index, coordinator_sender);
-            handler_clients_lock.lock().unwrap().push(client);
+            handler_clients_lock
+                .lock()
+                .unwrap()
+                .insert(client.thread_id, client);
             thread::Builder::new()
                 .name("Client-Listener".into())
                 .spawn(move || {

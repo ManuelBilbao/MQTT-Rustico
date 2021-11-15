@@ -1,6 +1,7 @@
 use crate::client::Client;
 use crate::packet::{bytes2string, Packet};
 use crate::server::PacketThings;
+use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
@@ -12,7 +13,7 @@ pub struct RetainedMessage {
 
 pub fn run_coordinator(
     coordinator_receiver: Receiver<PacketThings>,
-    lock_clients: Arc<Mutex<Vec<Client>>>,
+    lock_clients: Arc<Mutex<HashMap<usize, Client>>>,
 ) {
     let mut retained_messages = Vec::new();
     loop {
@@ -70,16 +71,10 @@ pub fn run_coordinator(
     }
 }
 
-fn close_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThings) {
+fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
     match lock_clients.lock() {
         Ok(mut locked) => {
-            let new_client_id = bytes2string(&packet.bytes[0..(packet.bytes.len())]).unwrap();
-            for i in 0..locked.len() {
-                if locked[i].client_id == new_client_id {
-                    locked.remove(i);
-                    break;
-                }
-            }
+            locked.remove(&packet.thread_id);
         }
         Err(_) => {
             println!("Imposible acceder al lock desde el cordinador")
@@ -87,22 +82,25 @@ fn close_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThings) 
     }
 }
 
-fn remove_publishes(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &mut PacketThings) {
+fn remove_publishes(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &mut PacketThings) {
     let puback_packet_identifier = ((packet.bytes[0] as u16) << 8) + packet.bytes[1] as u16;
     match lock_clients.lock() {
-        Ok(mut locked) => {
-            if let Some(indice) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
-                if let Some(indice2) = locked[indice].publishes_received.iter().position(|r| {
+        Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
+            Some(client) => {
+                if let Some(indice2) = client.publishes_received.iter().position(|r| {
                     let topic_name_len: usize = ((r[2] as usize) << 8) + r[3] as usize;
                     let publish_packet_identifier =
                         ((r[topic_name_len + 4] as u16) << 8) + r[topic_name_len + 5] as u16;
                     publish_packet_identifier == puback_packet_identifier
                 }) {
                     println!("eliminado publish del vector");
-                    locked[indice].publishes_received.remove(indice2);
+                    client.publishes_received.remove(indice2);
                 }
             }
-        }
+            None => {
+                println!("Cliente no encontrado en hashmap")
+            }
+        },
         Err(_) => {
             println!("Error al intentar eliminar un publish.");
             warn!("Error al intentar eliminar un publish.")
@@ -114,27 +112,31 @@ fn is_to_retained(packet: &PacketThings) -> bool {
     (packet.bytes[0] & 0x01) == 1
 }
 
-fn process_client_id(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &mut PacketThings) {
+fn process_client_id(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &mut PacketThings) {
     match lock_clients.lock() {
         Ok(mut locked) => {
             let mut already_exists = false;
             let new_client_id = bytes2string(&packet.bytes[0..(packet.bytes.len())]).unwrap();
             let mut subscriptions: Vec<String> = Vec::new();
-            for i in 0..locked.len() {
-                if locked[i].client_id == new_client_id {
+            let mut old_thread_id = 0;
+            for client in locked.iter_mut() {
+                if client.1.client_id == new_client_id {
                     already_exists = true;
-                    subscriptions.append(&mut locked[i].topics);
-                    locked.remove(i);
-                    break;
+                    subscriptions.append(&mut client.1.topics);
+                    old_thread_id = client.1.thread_id;
                 }
             }
-            for i in 0..locked.len() {
-                if locked[i].thread_id == packet.thread_id {
-                    locked[i].client_id = new_client_id;
+            locked.remove(&old_thread_id);
+
+            match locked.get_mut(&packet.thread_id) {
+                Some(client) => {
+                    client.client_id = new_client_id;
                     if already_exists {
-                        locked[i].topics.append(&mut subscriptions);
+                        client.topics.append(&mut subscriptions);
                     }
-                    break;
+                }
+                None => {
+                    println!("cliente no encontrado en hashmap")
                 }
             }
         }
@@ -145,7 +147,7 @@ fn process_client_id(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &mut Packet
 }
 
 fn send_publish_to_customer(
-    lock_clients: &Arc<Mutex<Vec<Client>>>,
+    lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &mut PacketThings,
     topic_name: &str,
 ) -> Vec<u8> {
@@ -154,15 +156,15 @@ fn send_publish_to_customer(
     buffer_packet.extend(&packet.bytes);
     match lock_clients.lock() {
         Ok(mut locked) => {
-            for i in 0..locked.len() {
-                if locked[i].is_subscribed_to(topic_name) {
+            for client in locked.iter_mut() {
+                if client.1.is_subscribed_to(topic_name) {
                     let mut buffer_to_send: Vec<u8> = Vec::new();
                     buffer_to_send.extend(&buffer_packet);
                     let buffer_clone = buffer_to_send.clone();
-                    match locked[i].channel.send(buffer_to_send) {
+                    match client.1.channel.send(buffer_to_send) {
                         Ok(_) => {
                             println!("Publish enviado al cliente");
-                            locked[i].publishes_received.push(buffer_clone);
+                            client.1.publishes_received.push(buffer_clone);
                         }
                         Err(_) => {
                             println!("Error al enviar Publish al cliente")
@@ -205,28 +207,29 @@ fn process_publish(packet: &mut PacketThings) -> String {
     topic_name
 }
 
-fn send_unsubback(lock_clients: &Arc<Mutex<Vec<Client>>>, packete: PacketThings) {
+fn send_unsubback(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: PacketThings) {
     let buffer: Vec<u8> = vec![
         Packet::UnsubAck.into(),
         0x02,
-        packete.bytes[0],
-        packete.bytes[1],
+        packet.bytes[0],
+        packet.bytes[1],
     ];
     match lock_clients.lock() {
-        Ok(locked) => {
-            if let Some(index) = locked.iter().position(|r| r.thread_id == packete.thread_id) {
-                match locked[index].channel.send(buffer) {
-                    Ok(_) => {
-                        println!("SubBack enviado.");
-                        info!("SubBack enviado.");
-                    }
-                    Err(_) => {
-                        println!("Error al enviar Unsubback.");
-                        debug!("Error con el envio del Unsubback.")
-                    }
+        Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
+            Some(client) => match client.channel.send(buffer) {
+                Ok(_) => {
+                    println!("SubBack enviado.");
+                    info!("SubBack enviado.");
                 }
+                Err(_) => {
+                    println!("Error al enviar Unsubback.");
+                    debug!("Error con el envio del Unsubback.")
+                }
+            },
+            None => {
+                println!("cliente no encontrado en hashmap")
             }
-        }
+        },
         Err(_) => {
             println!("Imposible acceder al lock desde el cordinador.");
             warn!("Imposible acceder al lock desde el cordinador.")
@@ -234,7 +237,7 @@ fn send_unsubback(lock_clients: &Arc<Mutex<Vec<Client>>>, packete: PacketThings)
     }
 }
 
-fn unsubscribe_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketThings) {
+fn unsubscribe_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
     let mut index = 2;
     while index < packet.bytes.len() {
         let topic_size: usize =
@@ -243,12 +246,15 @@ fn unsubscribe_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketTh
         let topico = bytes2string(&packet.bytes[index..(index + topic_size)]).unwrap(); //TODO Cambiar el unwrap
         index += topic_size;
         match lock_clients.lock() {
-            Ok(mut locked) => {
-                if let Some(indice) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
-                    locked[indice].unsubscribe(topico);
+            Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
+                Some(client) => {
+                    client.unsubscribe(topico);
                     info!("El cliente se desuscribio del topico.")
                 }
-            }
+                None => {
+                    println!("cliente no encontrado en hashmap")
+                }
+            },
             Err(_) => {
                 println!("Error al intentar desuscribir de un topico.");
                 warn!("Error al intentar desuscribir de un topico.")
@@ -258,7 +264,7 @@ fn unsubscribe_process(lock_clients: &Arc<Mutex<Vec<Client>>>, packet: &PacketTh
 }
 
 fn send_subback(
-    lock_clientes: &Arc<Mutex<Vec<Client>>>,
+    lock_clientes: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: PacketThings,
     vector_with_qos: Vec<u8>,
 ) {
@@ -272,20 +278,21 @@ fn send_subback(
         buffer.push(bytes);
     }
     match lock_clientes.lock() {
-        Ok(locked) => {
-            if let Some(index) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
-                match locked[index].channel.send(buffer) {
-                    Ok(_) => {
-                        println!("SubBack enviado");
-                        info!("SubBack enviado")
-                    }
-                    Err(_) => {
-                        println!("Error al enviar Subback");
-                        debug!("Error al enviar Subback")
-                    }
+        Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
+            Some(client) => match client.channel.send(buffer) {
+                Ok(_) => {
+                    println!("SubBack enviado");
+                    info!("SubBack enviado")
                 }
+                Err(_) => {
+                    println!("Error al enviar Subback");
+                    debug!("Error al enviar Subback")
+                }
+            },
+            None => {
+                println!("cliente no encontrado en hashmap")
             }
-        }
+        },
         Err(_) => {
             println!("Imposible acceder al lock desde el cordinador");
             warn!("Imposible acceder al lock desde el cordinador")
@@ -294,7 +301,7 @@ fn send_subback(
 }
 
 fn process_subscribe(
-    lock_clients: &Arc<Mutex<Vec<Client>>>,
+    lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &PacketThings,
     retained_messages: &mut Vec<RetainedMessage>,
 ) -> Vec<u8> {
@@ -309,15 +316,15 @@ fn process_subscribe(
         let qos: u8 = &packet.bytes[index] & 0x01;
         index += 1;
         match lock_clients.lock() {
-            Ok(mut locked) => {
-                if let Some(indice) = locked.iter().position(|r| r.thread_id == packet.thread_id) {
-                    locked[indice].subscribe(topic.clone());
+            Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
+                Some(client) => {
+                    client.subscribe(topic.clone());
                     if let Some(indice_retained) =
                         retained_messages.iter().position(|r| r.topic == topic)
                     {
                         let mut buffer_to_send: Vec<u8> = Vec::new();
                         buffer_to_send.extend(&retained_messages[indice_retained].message);
-                        match locked[indice].channel.send(buffer_to_send) {
+                        match client.channel.send(buffer_to_send) {
                             Ok(_) => {
                                 println!("Publish enviado al cliente")
                             }
@@ -329,7 +336,10 @@ fn process_subscribe(
                     vector_with_qos.push(qos);
                     info!("El cliente se subscribio al topico")
                 }
-            }
+                None => {
+                    println!("cliente no encontrado en hashmap")
+                }
+            },
             Err(_) => vector_with_qos.push(0x80),
         }
     }
@@ -346,7 +356,7 @@ mod tests {
 
     #[test]
     fn test01_se_realiza_suscripcion_se_publica_el_coordinador_envia_ese_paquete() {
-        let clients: Vec<Client> = Vec::new();
+        let clients: HashMap<usize, Client> = HashMap::new();
         let lock_clients = Arc::new(Mutex::new(clients));
         let handler_clients_locks = lock_clients.clone();
         let (clients_sender, coordinator_receiver): (Sender<PacketThings>, Receiver<PacketThings>) =
@@ -356,7 +366,10 @@ mod tests {
         let mutex_clients_sender = Arc::new(Mutex::new(clients_sender));
         let client_sender = Arc::clone(&mutex_clients_sender);
         let client: Client = Client::new(1, coordinator_sender);
-        handler_clients_locks.lock().unwrap().push(client);
+        handler_clients_locks
+            .lock()
+            .unwrap()
+            .insert(client.thread_id, client);
         thread::Builder::new()
             .name("Coordinator".into())
             .spawn(move || run_coordinator(coordinator_receiver, lock_clients))
@@ -433,7 +446,10 @@ mod tests {
             topics: Vec::new(),
             publishes_received: Vec::new(),
         };
-        let clients: Vec<Client> = vec![client_1, client_2];
+        let clients: HashMap<usize, Client> = HashMap::from([
+            (client_1.thread_id, client_1),
+            (client_2.thread_id, client_2),
+        ]);
         let lock_clients = Arc::new(Mutex::new(clients));
         let handler_clients_locks = lock_clients.clone();
         let (clients_sender, coordinator_receiver): (Sender<PacketThings>, Receiver<PacketThings>) =
@@ -452,10 +468,10 @@ mod tests {
         };
         clients_sender.send(packet_to_server).unwrap();
         thread::sleep(time::Duration::from_millis(20));
-        let vector = handler_clients_locks.lock().unwrap();
-        assert_eq!(vector.len(), 1);
-        assert_eq!(vector[0].thread_id, 2);
-        assert!(vector[0].is_subscribed_to("as/tillero"));
-        assert!(!vector[0].is_subscribed_to("am/tillero"));
+        let hashmap = handler_clients_locks.lock().unwrap();
+        assert_eq!(hashmap.len(), 1);
+        assert_eq!(hashmap.get(&2).unwrap().thread_id, 2);
+        assert!(hashmap.get(&2).unwrap().is_subscribed_to("as/tillero"));
+        assert!(!hashmap.get(&2).unwrap().is_subscribed_to("am/tillero"));
     }
 }
