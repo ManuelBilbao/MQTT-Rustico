@@ -27,6 +27,7 @@ pub struct ClientFlags<'a> {
     pub will_message: Option<String>,
     pub will_qos: u8,
     pub will_retained: bool,
+    pub clean_session: u8,
     pub keep_alive: u16,
 }
 
@@ -116,6 +117,7 @@ pub fn handle_client(
         will_message: None,
         will_qos: 0,
         will_retained: false,
+        clean_session: 1,
         keep_alive: 1000,
     };
 

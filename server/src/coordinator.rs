@@ -21,7 +21,9 @@ pub fn run_coordinator(
         match coordinator_receiver.recv() {
             Ok(mut packet) => {
                 match packet.packet_type {
-                    Packet::Connect => process_client_id(&lock_clients, &mut packet),
+                    Packet::Connect => {
+                        process_client_id_and_clean_session(&lock_clients, &mut packet)
+                    }
                     Packet::Subscribe => {
                         info!("Se recibio un paquete Subscribe.");
                         let vector_with_qos =
@@ -74,10 +76,20 @@ pub fn run_coordinator(
 fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
     match lock_clients.lock() {
         Ok(mut locked) => {
-            locked.remove(&packet.thread_id);
+            match locked.get_mut(&packet.thread_id) {
+                Some(client) => {
+                    if client.clean_session == 1 {
+                        locked.remove(&packet.thread_id);
+                    }
+                }
+                None => {
+                    println!("Error al buscar cliente para desconectar")
+                }
+            }
+            println!("{}", locked.len());
         }
         Err(_) => {
-            println!("Imposible acceder al lock desde el cordinador")
+            println!("Imposible acceder al lock desde el coordinador")
         }
     }
 }
@@ -112,17 +124,23 @@ fn is_to_retained(packet: &PacketThings) -> bool {
     (packet.bytes[0] & 0x01) == 1
 }
 
-fn process_client_id(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &mut PacketThings) {
+fn process_client_id_and_clean_session(
+    lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
+    packet: &mut PacketThings,
+) {
     match lock_clients.lock() {
         Ok(mut locked) => {
             let mut already_exists = false;
-            let new_client_id = bytes2string(&packet.bytes[0..(packet.bytes.len())]).unwrap();
+            let new_client_id = bytes2string(&packet.bytes[0..(packet.bytes.len() - 1)]).unwrap();
+            let clean_session = packet.bytes[(packet.bytes.len() - 1)];
             let mut subscriptions: Vec<String> = Vec::new();
+            let mut publishes_received: Vec<Vec<u8>> = Vec::new();
             let mut old_thread_id = 0;
             for client in locked.iter_mut() {
                 if client.1.client_id == new_client_id {
                     already_exists = true;
                     subscriptions.append(&mut client.1.topics);
+                    publishes_received.append(&mut client.1.publishes_received);
                     old_thread_id = client.1.thread_id;
                 }
             }
@@ -131,7 +149,9 @@ fn process_client_id(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: 
             match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
                     client.client_id = new_client_id;
+                    client.clean_session = clean_session;
                     if already_exists {
+                        send_stacked_messages(client, publishes_received);
                         client.topics.append(&mut subscriptions);
                     }
                 }
@@ -142,6 +162,16 @@ fn process_client_id(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: 
         }
         Err(_) => {
             println!("Imposible acceder al lock desde el cordinador")
+        }
+    }
+}
+fn send_stacked_messages(client: &mut Client, publishes_received: Vec<Vec<u8>>) {
+    for publish in publishes_received.iter() {
+        match client.channel.send(publish.to_vec()) {
+            Ok(_) => {}
+            Err(_) => {
+                println!("error al mandar mensaje encolado")
+            }
         }
     }
 }
@@ -436,6 +466,7 @@ mod tests {
             channel: channel_1,
             topics: Vec::new(),
             publishes_received: Vec::new(),
+            clean_session: 1,
         };
         client_1.subscribe("as/tillero".to_owned());
         client_1.subscribe("ma/derero".to_owned());
@@ -445,6 +476,7 @@ mod tests {
             channel: channel_2,
             topics: Vec::new(),
             publishes_received: Vec::new(),
+            clean_session: 1,
         };
         let clients: HashMap<usize, Client> = HashMap::from([
             (client_1.thread_id, client_1),
@@ -459,6 +491,7 @@ mod tests {
             .spawn(move || run_coordinator(coordinator_receiver, lock_clients))
             .unwrap();
         let mut bytes: Vec<u8> = "Homero".to_owned().as_bytes().to_vec();
+        bytes.push(1); //clean_session
         let mut buffer_packet: Vec<u8> = Vec::new();
         buffer_packet.append(&mut bytes);
         let packet_to_server = PacketThings {

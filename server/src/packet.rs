@@ -83,7 +83,7 @@ pub fn read_packet(
             match make_connection(client, buffer_packet) {
                 Ok(session_present) => {
                     send_connection_result(client, SUCCESSFUL_CONNECTION, session_present);
-                    inform_client_id_to_coordinator(client);
+                    inform_client_id_and_clean_session(client);
                 }
                 Err(error_code) => {
                     send_connection_result(client, error_code, 0);
@@ -176,9 +176,10 @@ fn close_streams(client: &mut ClientFlags) {
     println!("Cerre el stream con el coordinator!");
 }
 
-fn inform_client_id_to_coordinator(client: &mut ClientFlags) {
+fn inform_client_id_and_clean_session(client: &mut ClientFlags) {
     if let Some(client_id) = &client.client_id {
         let mut bytes: Vec<u8> = client_id.as_bytes().to_vec();
+        bytes.push(client.clean_session);
         let mut buffer_packet: Vec<u8> = Vec::new();
         buffer_packet.append(&mut bytes);
         let packet_to_server = PacketThings {
@@ -410,6 +411,8 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
     client.will_message = will_message;
     client.will_qos = flag_will_qos;
     client.will_retained = flag_will_retain;
+    client.clean_session = flag_clean_session as u8;
+    println!("clean session {}", flag_clean_session);
     client.keep_alive = keep_alive;
 
     Ok(1) // TODO: Persistent Sessions
@@ -512,6 +515,7 @@ mod tests {
             will_message: None,
             will_qos: 0,
             will_retained: false,
+            clean_session: 1,
             keep_alive: 1000,
         };
         let mut buffer_packet: Vec<u8> = Vec::new();

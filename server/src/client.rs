@@ -7,6 +7,7 @@ pub struct Client {
     pub channel: Sender<Vec<u8>>,
     pub topics: Vec<String>,
     pub publishes_received: Vec<Vec<u8>>,
+    pub clean_session: u8,
 }
 
 impl Client {
@@ -17,6 +18,7 @@ impl Client {
             channel,
             topics: Vec::new(),
             publishes_received: Vec::new(),
+            clean_session: 0,
         }
     }
 
