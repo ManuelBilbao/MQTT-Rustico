@@ -77,3 +77,22 @@ impl Configuration {
         self.logfile.to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test01_direccion_correcta() {
+        let mut aux = Configuration::new();
+        let err = aux.set_config("src/testconfig.txt");
+        assert_eq!(aux.get_address(), "127.0.0.1:1883");
+    }
+
+    #[test]
+    fn test02_logfile_correcto() {
+        let mut aux = Configuration::new();
+        let err = aux.set_config("src/testconfig.txt");
+        assert_eq!(aux.get_address(), "file.log");
+    }
+}
