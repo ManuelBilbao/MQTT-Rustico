@@ -150,7 +150,7 @@ fn read_packets_from_client(mut current_client: &mut ClientFlags) {
                     Vec::new(),
                     Packet::Disconnect,
                 );
-                println!("El cliente se desconecto y cerro el stream.");
+                info!("El cliente se desconecto y cerro el stream."); //
                 break;
             }
         }

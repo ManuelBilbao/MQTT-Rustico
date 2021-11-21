@@ -4,7 +4,7 @@ use crate::server::PacketThings;
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub struct RetainedMessage {
     topic: String,
@@ -83,13 +83,13 @@ fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &Pac
                     }
                 }
                 None => {
-                    println!("Error al buscar cliente para desconectar")
+                    debug!("Error al buscar cliente para desconectar")
                 }
             }
             println!("{}", locked.len());
         }
         Err(_) => {
-            println!("Imposible acceder al lock desde el coordinador")
+            warn!("Imposible acceder al lock desde el coordinador")
         }
     }
 }
@@ -105,16 +105,15 @@ fn remove_publishes(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &
                         ((r[topic_name_len + 4] as u16) << 8) + r[topic_name_len + 5] as u16;
                     publish_packet_identifier == puback_packet_identifier
                 }) {
-                    println!("eliminado publish del vector");
+                    info!("eliminado publish del vector");
                     client.publishes_received.remove(indice2);
                 }
             }
             None => {
-                println!("Cliente no encontrado en hashmap")
+                debug!("Cliente no encontrado en hashmap")
             }
         },
         Err(_) => {
-            println!("Error al intentar eliminar un publish.");
             warn!("Error al intentar eliminar un publish.")
         }
     }
@@ -156,12 +155,12 @@ fn process_client_id_and_clean_session(
                     }
                 }
                 None => {
-                    println!("cliente no encontrado en hashmap")
+                    debug!("cliente no encontrado en hashmap")
                 }
             }
         }
         Err(_) => {
-            println!("Imposible acceder al lock desde el cordinador")
+            warn!("Imposible acceder al lock desde el cordinador")
         }
     }
 }
@@ -170,7 +169,7 @@ fn send_stacked_messages(client: &mut Client, publishes_received: Vec<Vec<u8>>) 
         match client.channel.send(publish.to_vec()) {
             Ok(_) => {}
             Err(_) => {
-                println!("error al mandar mensaje encolado")
+                warn!("error al mandar mensaje encolado")
             }
         }
     }
@@ -193,18 +192,18 @@ fn send_publish_to_customer(
                     let buffer_clone = buffer_to_send.clone();
                     match client.1.channel.send(buffer_to_send) {
                         Ok(_) => {
-                            println!("Publish enviado al cliente");
+                            info!("Publish enviado al cliente");
                             client.1.publishes_received.push(buffer_clone);
                         }
                         Err(_) => {
-                            println!("Error al enviar Publish al cliente")
+                            debug!("Error al enviar Publish al cliente")
                         }
                     }
                 }
             }
         }
         Err(_) => {
-            println!("Imposible acceder al lock desde el cordinador")
+            warn!("Imposible acceder al lock desde el cordinador")
         }
     }
     buffer_packet
@@ -220,7 +219,7 @@ fn process_publish(packet: &mut PacketThings) -> String {
             topic_name = value;
         }
         Err(_) => {
-            println!("Error procesando topico");
+            error!("Error procesando topico");
         }
     }
     let mut _topic_desc = String::from(""); //INICIO RETAINED
@@ -230,7 +229,7 @@ fn process_publish(packet: &mut PacketThings) -> String {
                 _topic_desc = value;
             }
             Err(_) => {
-                println!("Error leyendo contenido del publish")
+                error!("Error leyendo contenido del publish")
             }
         }
     }
@@ -248,20 +247,17 @@ fn send_unsubback(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: Pac
         Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
             Some(client) => match client.channel.send(buffer) {
                 Ok(_) => {
-                    println!("SubBack enviado.");
                     info!("SubBack enviado.");
                 }
                 Err(_) => {
-                    println!("Error al enviar Unsubback.");
                     debug!("Error con el envio del Unsubback.")
                 }
             },
             None => {
-                println!("cliente no encontrado en hashmap")
+                warn!("cliente no encontrado en hashmap")
             }
         },
         Err(_) => {
-            println!("Imposible acceder al lock desde el cordinador.");
             warn!("Imposible acceder al lock desde el cordinador.")
         }
     }
@@ -282,11 +278,10 @@ fn unsubscribe_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet
                     info!("El cliente se desuscribio del topico.")
                 }
                 None => {
-                    println!("cliente no encontrado en hashmap")
+                    debug!("cliente no encontrado en hashmap")
                 }
             },
             Err(_) => {
-                println!("Error al intentar desuscribir de un topico.");
                 warn!("Error al intentar desuscribir de un topico.")
             }
         }
@@ -311,20 +306,17 @@ fn send_subback(
         Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
             Some(client) => match client.channel.send(buffer) {
                 Ok(_) => {
-                    println!("SubBack enviado");
                     info!("SubBack enviado")
                 }
                 Err(_) => {
-                    println!("Error al enviar Subback");
                     debug!("Error al enviar Subback")
                 }
             },
             None => {
-                println!("cliente no encontrado en hashmap")
+                warn!("cliente no encontrado en hashmap")
             }
         },
         Err(_) => {
-            println!("Imposible acceder al lock desde el cordinador");
             warn!("Imposible acceder al lock desde el cordinador")
         }
     }
@@ -356,10 +348,10 @@ fn process_subscribe(
                         buffer_to_send.extend(&retained_messages[indice_retained].message);
                         match client.channel.send(buffer_to_send) {
                             Ok(_) => {
-                                println!("Publish enviado al cliente")
+                                info!("Publish enviado al cliente")
                             }
                             Err(_) => {
-                                println!("Error al enviar Publish al cliente")
+                                debug!("Error al enviar Publish al cliente")
                             }
                         }
                     }
@@ -367,7 +359,7 @@ fn process_subscribe(
                     info!("El cliente se subscribio al topico")
                 }
                 None => {
-                    println!("cliente no encontrado en hashmap")
+                    debug!("cliente no encontrado en hashmap")
                 }
             },
             Err(_) => vector_with_qos.push(0x80),

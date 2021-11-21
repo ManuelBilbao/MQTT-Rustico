@@ -2,7 +2,7 @@ use crate::server::{ClientFlags, PacketThings};
 use std::io::{Read, Write};
 use std::net::Shutdown;
 use std::time::Duration;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 const MQTT_VERSION: u8 = 4;
 const MQTT_NAME: [u8; 6] = [0x00, 0x04, 0x4D, 0x51, 0x54, 0x54];
@@ -79,7 +79,7 @@ pub fn read_packet(
     client.connection.read_exact(&mut buffer_packet)?;
     match packet_type {
         Packet::Connect => {
-            println!("Connect package received");
+            info!("Connect package received");
             match make_connection(client, buffer_packet) {
                 Ok(session_present) => {
                     send_connection_result(client, SUCCESSFUL_CONNECTION, session_present);
@@ -91,13 +91,13 @@ pub fn read_packet(
             }
         }
         Packet::Publish => {
-            println!("Received Publish package");
+            info!("Received Publish package");
             match make_publication(client, buffer_packet, byte_0) {
                 Ok(paquete_identifier) => {
                     send_publication_results(client, paquete_identifier);
                 }
                 Err(_) => {
-                    println!("error when publishing");
+                    warn!("error when publishing");
                 }
             }
         }
@@ -112,16 +112,16 @@ pub fn read_packet(
         }
         Packet::Disconnect => {
             //TODO will message
-            println!("Me llego un disconnect");
+            info!("Me llego un disconnect");
             inform_client_disconnect_to_coordinator(client, buffer_packet, Packet::Disconnect);
             close_streams(client);
         }
         Packet::PubAck => {
             remove_from_client_publishes(client, buffer_packet);
-            println!("Puback recibido del cliente");
+            info!("Puback recibido del cliente");
         }
         _ => {
-            println!("Received unknown package");
+            info!("Received unknown packet");
         }
     }
 
@@ -143,15 +143,15 @@ pub fn inform_client_disconnect_to_coordinator(
         Ok(sender_ok) => {
             match sender_ok.send(packet_to_server) {
                 Ok(_) => {
-                    println!("Success sending disconnect to coordinator thread")
+                    info!("Success sending disconnect to coordinator thread")
                 }
                 Err(_) => {
-                    println!("Error sending sending disconnect to coordinator thread")
+                    debug!("Error sending sending disconnect to coordinator thread")
                 }
             };
         }
         Err(_) => {
-            println!("Error reading coordinator channel")
+            warn!("Error reading coordinator channel")
         }
     }
 }
@@ -162,18 +162,18 @@ fn close_streams(client: &mut ClientFlags) {
 
     match aux {
         Ok(0) => {
-            println!("El cliente ya habia cerrado el stream");
+            info!("El cliente ya habia cerrado el stream")
         }
         _ => {
             client
                 .connection
                 .shutdown(Shutdown::Both)
                 .expect("shutdown call failed");
-            println!("Cerre el stream con el cliente");
+            info!("Cerre el stream con el cliente");
         }
     }
     drop(client.sender.lock().unwrap());
-    println!("Cerre el stream con el coordinator!");
+    info!("Cerre el stream con el coordinator!");
 }
 
 fn inform_client_id_and_clean_session(client: &mut ClientFlags) {
@@ -192,15 +192,15 @@ fn inform_client_id_and_clean_session(client: &mut ClientFlags) {
             Ok(sender_ok) => {
                 match sender_ok.send(packet_to_server) {
                     Ok(_) => {
-                        println!("Success sending client id change to the coordinator thread")
+                        info!("Success sending client id change to the coordinator thread")
                     }
                     Err(_) => {
-                        println!("Error sending client id change to coordinator thread")
+                        debug!("Error sending client id change to coordinator thread")
                     }
                 };
             }
             Err(_) => {
-                println!("Error reading coordinator channel")
+                warn!("Error reading coordinator channel")
             }
         }
     }
@@ -217,15 +217,15 @@ fn change_subscription(client: &mut ClientFlags, buffer_packet: Vec<u8>, tipo: P
         Ok(sender_ok) => {
             match sender_ok.send(packet_to_server) {
                 Ok(_) => {
-                    println!("Success sending subscription change to the coordinator thread")
+                    info!("Success sending subscription change to the coordinator thread")
                 }
                 Err(_) => {
-                    println!("Error sending subscription change to coordinator thread")
+                    debug!("Error sending subscription change to coordinator thread")
                 }
             };
         }
         Err(_) => {
-            println!("Error reading subscription change")
+            warn!("Error reading subscription change")
         }
     }
 }
@@ -256,7 +256,7 @@ fn send_connection_result(client: &mut ClientFlags, result_code: u8, session_pre
     buffer[3] = result_code;
 
     client.connection.write_all(&buffer).unwrap();
-    println!("Envié el connac");
+    info!("Envié el connac");
 }
 fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]) {
     let mut buffer = [0u8; 4];
@@ -266,7 +266,7 @@ fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]
     buffer[3] = packet_identifier[1];
 
     client.connection.write_all(&buffer).unwrap();
-    println!("Envié el puback");
+    info!("Envié el puback");
 }
 
 fn make_publication(
@@ -311,7 +311,6 @@ fn send_pingresp(client: &mut ClientFlags) {
     let buffer = [Packet::PingResp.into(), 0];
 
     client.connection.write_all(&buffer).unwrap();
-    println!("Envié el PingResp");
     info!("Enviado PingResp");
 }
 
@@ -412,7 +411,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
     client.will_qos = flag_will_qos;
     client.will_retained = flag_will_retain;
     client.clean_session = flag_clean_session as u8;
-    println!("clean session {}", flag_clean_session);
+    debug!("clean session {}", flag_clean_session);
     client.keep_alive = keep_alive;
 
     Ok(1) // TODO: Persistent Sessions
