@@ -8,12 +8,11 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use tracing::{debug, info, Level};
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing::{debug, info};
 
 pub struct Server {
     //
-    cfg: Configuration,
+    pub cfg: Configuration,
 }
 
 pub struct ClientFlags<'a> {
@@ -45,13 +44,6 @@ impl Server {
     }
 
     pub fn run(&self) -> std::io::Result<()> {
-        let file_appender = RollingFileAppender::new(Rotation::NEVER, "", self.cfg.get_log_file());
-        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-        tracing_subscriber::fmt()
-            .with_writer(non_blocking)
-            .with_max_level(Level::TRACE)
-            .with_ansi(false)
-            .init();
         info!("Arranca sistema de logs.");
         let address = self.cfg.get_address();
         debug!("IP: {}", &address); //

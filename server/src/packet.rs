@@ -329,7 +329,12 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
 
     let size_client_id: usize = ((buffer_packet[10] as usize) << 8) + buffer_packet[11] as usize;
 
-    let client_id = Some(bytes2string(&buffer_packet[12..12 + size_client_id])?); // En UTF-8
+    let mut client_id = None;
+
+    if size_client_id != 0 {
+        client_id = Some(bytes2string(&buffer_packet[12..12 + size_client_id])?);
+        // En UTF-8
+    }
 
     let mut index: usize = (12 + size_client_id) as usize;
 
