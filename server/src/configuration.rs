@@ -85,14 +85,14 @@ mod tests {
     #[test]
     fn test01_direccion_correcta() {
         let mut aux = Configuration::new();
-        let err = aux.set_config("src/testconfig.txt");
+        aux.set_config("src/testcfg.txt").unwrap();
         assert_eq!(aux.get_address(), "127.0.0.1:1883");
     }
 
     #[test]
     fn test02_logfile_correcto() {
         let mut aux = Configuration::new();
-        let err = aux.set_config("src/testconfig.txt");
-        assert_eq!(aux.get_address(), "file.log");
+        aux.set_config("src/testcfg.txt").unwrap();
+        assert_eq!(aux.get_log_file(), "file.log");
     }
 }

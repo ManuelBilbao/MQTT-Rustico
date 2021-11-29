@@ -22,13 +22,10 @@ pub fn run_coordinator(
         match coordinator_receiver.recv() {
             Ok(mut packet) => {
                 match packet.packet_type {
-                    Packet::Connect => {
-                        process_client_id_and_clean_session(&lock_clients, &mut packet)
-                    }
+                    Packet::Connect => process_client_id_and_info(&lock_clients, &mut packet),
                     Packet::Subscribe => {
                         info!("Se recibio un paquete Subscribe.");
-                        let vector_with_qos =
-                            process_subscribe(&lock_clients, &packet);
+                        let vector_with_qos = process_subscribe(&lock_clients, &packet);
                         send_subback(&lock_clients, &packet, vector_with_qos);
                         send_retained_messages(&lock_clients, &packet, &mut retained_messages)
                     }
@@ -61,6 +58,19 @@ pub fn run_coordinator(
                         info!("Se recibio un paquete Disconnect.");
                         close_process(&lock_clients, &packet);
                     }
+                    Packet::Disgrace => {
+                        info!("Se recibio un paquete desconexión disgraceful.");
+                        close_disgraceful(&lock_clients, &packet);
+                        let (publish_packet, topic_name, publish_message) =
+                            send_lastwill(&lock_clients, &packet);
+                        if !publish_packet.is_empty() {
+                            let new_retained = RetainedMessage {
+                                topic: topic_name,
+                                message: publish_message.as_bytes().to_vec(),
+                            };
+                            retained_messages.push(new_retained);
+                        }
+                    }
                     _ => {
                         debug!("Se recibio un paquete desconocido.")
                     }
@@ -75,14 +85,77 @@ pub fn run_coordinator(
     }
 }
 
+fn send_lastwill(
+    lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
+    packet: &PacketThings,
+) -> (Vec<u8>, String, String) {
+    let mut buffer_packet: Vec<u8> = Vec::new();
+    let mut topic_name = "".to_owned();
+    let mut topic_message = "".to_owned();
+    match lock_clients.lock() {
+        Ok(mut locked) => {
+            match locked.get_mut(&packet.thread_id) {
+                Some(client) => {
+                    if let Some(topic) = &client.lastwill_topic {
+                        if let Some(message) = &client.lastwill_message {
+                            buffer_packet.push(Packet::Publish.into());
+                            topic_name = topic.clone();
+                            topic_message = message.clone();
+                            let mut topic_name_bytes = topic.as_bytes().to_vec();
+                            let mut topic_message_bytes = message.as_bytes().to_vec();
+                            buffer_packet.push(
+                                (4 + topic_name_bytes.len() + topic_message_bytes.len()) as u8,
+                            );
+                            buffer_packet.push(0);
+                            buffer_packet.push(topic_name_bytes.len() as u8);
+                            buffer_packet.append(&mut topic_name_bytes);
+                            buffer_packet.push(0);
+                            buffer_packet.push(50); //TODO CAMBIAR PACKETID
+                            buffer_packet.append(&mut topic_message_bytes);
+                            for client in locked.iter_mut() {
+                                if client.1.is_subscribed_to(&topic_name) {
+                                    let mut buffer_to_send: Vec<u8> = Vec::new();
+                                    buffer_to_send.extend(&buffer_packet);
+                                    let buffer_clone = buffer_to_send.clone();
+                                    match client.1.channel.send(buffer_to_send) {
+                                        Ok(_) => {
+                                            info!("Publish enviado al cliente");
+                                            client.1.publishes_received.push(buffer_clone);
+                                        }
+                                        Err(_) => {
+                                            debug!("Error al enviar Publish al cliente")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                None => {
+                    debug!("Error al buscar cliente para enviar lastwill")
+                }
+            }
+        }
+        Err(_) => {
+            warn!("Imposible acceder al lock desde el coordinador")
+        }
+    }
+    (buffer_packet, topic_name, topic_message)
+}
+
 fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
     match lock_clients.lock() {
         Ok(mut locked) => {
             match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
-                    if client.clean_session == 1 {
-                        locked.remove(&packet.thread_id);
+                    let close: Vec<u8> = vec![255_u8];
+                    match client.channel.send(close) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            warn!("error al mandar mensaje")
+                        }
                     }
+                    locked.remove(&packet.thread_id);
                 }
                 None => {
                     debug!("Error al buscar cliente para desconectar")
@@ -90,6 +163,31 @@ fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &Pac
             }
             println!("{}", locked.len());
         }
+        Err(_) => {
+            warn!("Imposible acceder al lock desde el coordinador")
+        }
+    }
+}
+
+fn close_disgraceful(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
+    match lock_clients.lock() {
+        Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
+            Some(client) => {
+                if !client.disconnected {
+                    let close: Vec<u8> = vec![255_u8];
+                    match client.channel.send(close) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            warn!("error al mandar mensaje")
+                        }
+                    }
+                    client.disconnected = true;
+                }
+            }
+            None => {
+                debug!("Error al buscar cliente para desconectar")
+            }
+        },
         Err(_) => {
             warn!("Imposible acceder al lock desde el coordinador")
         }
@@ -125,15 +223,42 @@ fn is_to_retained(packet: &PacketThings) -> bool {
     (packet.bytes[0] & 0x01) == 1
 }
 
-fn process_client_id_and_clean_session(
+fn process_client_id_and_info(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &mut PacketThings,
 ) {
     match lock_clients.lock() {
         Ok(mut locked) => {
             let mut already_exists = false;
-            let new_client_id = bytes2string(&packet.bytes[0..(packet.bytes.len() - 1)]).unwrap();
-            let clean_session = packet.bytes[(packet.bytes.len() - 1)];
+            let size = packet.bytes[0] as usize;
+            let new_client_id = bytes2string(&packet.bytes[1..(size + 1) as usize]).unwrap();
+            let clean_session = packet.bytes[(size + 1) as usize];
+            let mut will_topic = None;
+            let mut will_message = None;
+            let mut will_qos = 0;
+            let mut will_retained = false;
+            if packet.bytes[(size + 2) as usize] == 1 {
+                let mut index = (size + 3) as usize;
+                let topic_size = packet.bytes[index] as usize;
+                will_topic = Some(
+                    bytes2string(
+                        &packet.bytes[(index + 1) as usize..(index + 1 + topic_size) as usize],
+                    )
+                    .unwrap(),
+                );
+                index = (index + 1 + topic_size) as usize;
+                let message_size = packet.bytes[(index) as usize] as usize;
+                will_message = Some(
+                    bytes2string(
+                        &packet.bytes[(index + 1) as usize..(index + 1 + message_size) as usize],
+                    )
+                    .unwrap(),
+                );
+                will_qos = packet.bytes[(index + 1 + message_size) as usize];
+                if packet.bytes[(index + 2 + message_size) as usize] == 1 {
+                    will_retained = true;
+                }
+            }
             let mut subscriptions: Vec<String> = Vec::new();
             let mut publishes_received: Vec<Vec<u8>> = Vec::new();
             let mut old_thread_id = 0;
@@ -145,7 +270,9 @@ fn process_client_id_and_clean_session(
                     old_thread_id = client.1.thread_id;
                 }
             }
-            locked.remove(&old_thread_id);
+            if already_exists {
+                locked.remove(&old_thread_id);
+            }
 
             match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
@@ -155,6 +282,11 @@ fn process_client_id_and_clean_session(
                         send_stacked_messages(client, publishes_received);
                         client.topics.append(&mut subscriptions);
                     }
+                    client.lastwill_topic = will_topic;
+                    client.lastwill_message = will_message;
+                    client.lastwill_qos = will_qos;
+                    client.lastwill_retained = will_retained;
+                    client.disconnected = false;
                 }
                 None => {
                     debug!("cliente no encontrado en hashmap")
@@ -359,7 +491,7 @@ fn send_retained_messages(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &PacketThings,
     retained_messages: &mut Vec<RetainedMessage>,
-){
+) {
     let mut index = 2;
     while index < (packet.bytes.len() - 2) {
         let topic_size: usize =
@@ -389,7 +521,9 @@ fn send_retained_messages(
                     println!("Cliente no encontrado en hashmap")
                 }
             },
-            Err(_) => {},
+            Err(_) => {
+                println!("Imposible acceder al lock")
+            }
         }
     }
 }
@@ -414,7 +548,8 @@ mod tests {
             mpsc::channel();
         let mutex_clients_sender = Arc::new(Mutex::new(clients_sender));
         let client_sender = Arc::clone(&mutex_clients_sender);
-        let client: Client = Client::new(1, coordinator_sender);
+        let mut client: Client = Client::new(1, coordinator_sender);
+        client.disconnected = false;
         handler_clients_locks
             .lock()
             .unwrap()
@@ -487,6 +622,11 @@ mod tests {
             topics: Vec::new(),
             publishes_received: Vec::new(),
             clean_session: 1,
+            lastwill_topic: None,
+            lastwill_message: None,
+            lastwill_qos: 0,
+            lastwill_retained: false,
+            disconnected: false,
         };
         client_1.subscribe("as/tillero".to_owned());
         client_1.subscribe("ma/derero".to_owned());
@@ -497,6 +637,11 @@ mod tests {
             topics: Vec::new(),
             publishes_received: Vec::new(),
             clean_session: 1,
+            lastwill_topic: None,
+            lastwill_message: None,
+            lastwill_qos: 0,
+            lastwill_retained: false,
+            disconnected: false,
         };
         let mut clients: HashMap<usize, Client> = HashMap::new();
         clients.insert(client_1.thread_id, client_1);
@@ -509,8 +654,12 @@ mod tests {
             .name("Coordinator".into())
             .spawn(move || run_coordinator(coordinator_receiver, lock_clients))
             .unwrap();
-        let mut bytes: Vec<u8> = "Homero".to_owned().as_bytes().to_vec();
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut name = "Homero".to_owned().as_bytes().to_vec();
+        bytes.push(name.len() as u8);
+        bytes.append(&mut name);
         bytes.push(1); //clean_session
+        bytes.push(0); //not lastwill
         let mut buffer_packet: Vec<u8> = Vec::new();
         buffer_packet.append(&mut bytes);
         let packet_to_server = PacketThings {

@@ -8,6 +8,11 @@ pub struct Client {
     pub topics: Vec<String>,
     pub publishes_received: Vec<Vec<u8>>,
     pub clean_session: u8,
+    pub lastwill_topic: Option<String>,
+    pub lastwill_message: Option<String>,
+    pub lastwill_qos: u8,
+    pub lastwill_retained: bool,
+    pub disconnected: bool,
 }
 
 impl Client {
@@ -19,6 +24,11 @@ impl Client {
             topics: Vec::new(),
             publishes_received: Vec::new(),
             clean_session: 0,
+            lastwill_topic: None,
+            lastwill_message: None,
+            lastwill_qos: 0,
+            lastwill_retained: false,
+            disconnected: true,
         }
     }
 
@@ -33,6 +43,9 @@ impl Client {
     }
 
     pub fn is_subscribed_to(&self, topic: &str) -> bool {
+        if self.disconnected {
+            return false;
+        }
         let mut subscribed: bool = false;
         for topic_aux in &self.topics {
             if compare_topic(topic, topic_aux) {

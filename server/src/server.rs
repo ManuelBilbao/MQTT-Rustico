@@ -8,7 +8,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub struct Server {
     //
@@ -20,12 +20,6 @@ pub struct ClientFlags<'a> {
     pub client_id: Option<String>,
     pub connection: &'a mut TcpStream,
     pub sender: Arc<Mutex<Sender<PacketThings>>>,
-    pub username: Option<String>,
-    pub password: Option<String>,
-    pub will_topic: Option<String>,
-    pub will_message: Option<String>,
-    pub will_qos: u8,
-    pub will_retained: bool,
     pub clean_session: u8,
     pub keep_alive: u16,
 }
@@ -73,7 +67,8 @@ impl Server {
             let mut client_stream: TcpStream = connection.0;
             let (coordinator_sender, client_receiver): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
                 mpsc::channel();
-            let client_sender = Arc::clone(clients_sender);
+            let client_sender_1 = Arc::clone(clients_sender);
+            let client_sender_2 = Arc::clone(clients_sender);
             let client: Client = Client::new(index, coordinator_sender);
             handler_clients_lock
                 .lock()
@@ -83,7 +78,13 @@ impl Server {
                 .name("Client-Listener".into())
                 .spawn(move || {
                     info!("Se lanzo un nuevo cliente.");
-                    handle_client(index, &mut client_stream, client_sender, client_receiver);
+                    handle_client(
+                        index,
+                        &mut client_stream,
+                        client_sender_1,
+                        client_sender_2,
+                        client_receiver,
+                    );
                 })
                 .unwrap();
             index += 1;
@@ -94,7 +95,8 @@ impl Server {
 pub fn handle_client(
     id: usize,
     stream: &mut TcpStream,
-    client_sender: Arc<Mutex<Sender<PacketThings>>>,
+    client_sender_1: Arc<Mutex<Sender<PacketThings>>>,
+    client_sender_2: Arc<Mutex<Sender<PacketThings>>>,
     client_receiver: Receiver<Vec<u8>>,
 ) {
     let stream_cloned = stream.try_clone().unwrap();
@@ -102,20 +104,14 @@ pub fn handle_client(
         id,
         client_id: None,
         connection: stream,
-        sender: client_sender,
-        username: None,
-        password: None,
-        will_topic: None,
-        will_message: None,
-        will_qos: 0,
-        will_retained: false,
+        sender: client_sender_1,
         clean_session: 1,
         keep_alive: 1000,
     };
 
     thread::Builder::new()
         .name("Client-Communicator".into())
-        .spawn(move || send_packets_to_client(client_receiver, stream_cloned))
+        .spawn(move || send_packets_to_client(client_sender_2, client_receiver, stream_cloned, id))
         .unwrap();
 
     read_packets_from_client(&mut current_client)
@@ -140,20 +136,58 @@ fn read_packets_from_client(mut current_client: &mut ClientFlags) {
                 inform_client_disconnect_to_coordinator(
                     current_client,
                     Vec::new(),
-                    Packet::Disconnect,
+                    Packet::Disgrace,
                 );
-                info!("El cliente se desconecto y cerro el stream."); //
+                info!("El cliente se desconecto disgracefully");
                 break;
             }
         }
     }
 }
 
-fn send_packets_to_client(client_receiver: Receiver<Vec<u8>>, mut stream_cloned: TcpStream) -> ! {
+fn send_packets_to_client(
+    client_sender: Arc<Mutex<Sender<PacketThings>>>,
+    client_receiver: Receiver<Vec<u8>>,
+    mut stream_cloned: TcpStream,
+    thread_id: usize,
+) {
     loop {
         match client_receiver.recv() {
             Ok(val) => {
-                stream_cloned.write_all(&val).unwrap();
+                if val[0] == 255 {
+                    info!("Cerrando thread de comunicación con el cliente");
+                    break;
+                }
+                match stream_cloned.write_all(&val) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        let sender = client_sender.lock();
+                        match sender {
+                            Ok(sender_ok) => {
+                                let packet_to_server = PacketThings {
+                                    thread_id,
+                                    packet_type: Packet::Disgrace,
+                                    bytes: Vec::new(),
+                                };
+                                match sender_ok.send(packet_to_server) {
+                                    Ok(_) => {
+                                        info!(
+                                            "Success sending disgraceful connection to coordinator"
+                                        )
+                                    }
+                                    Err(_) => {
+                                        debug!(
+                                            "Error sending disgraceful connection to coordinator"
+                                        )
+                                    }
+                                };
+                            }
+                            Err(_) => {
+                                warn!("Error reading coordinator channel")
+                            }
+                        }
+                    }
+                }
             }
             Err(_er) => {}
         }

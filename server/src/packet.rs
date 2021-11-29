@@ -26,6 +26,7 @@ pub enum Packet {
     PingReq,
     PingResp,
     Disconnect,
+    Disgrace,
 }
 
 impl From<u8> for Packet {
@@ -44,7 +45,7 @@ impl From<u8> for Packet {
             0xC0 => Packet::PingReq,
             0xD0 => Packet::PingResp,
             0xE0 => Packet::Disconnect,
-            _ => Packet::Disconnect,
+            _ => Packet::Disgrace,
         }
     }
 }
@@ -65,6 +66,7 @@ impl From<Packet> for u8 {
             Packet::PingReq => 0xC0,
             Packet::PingResp => 0xD0,
             Packet::Disconnect => 0xE0,
+            _ => 0x00,
         }
     }
 }
@@ -83,7 +85,6 @@ pub fn read_packet(
             match make_connection(client, buffer_packet) {
                 Ok(session_present) => {
                     send_connection_result(client, SUCCESSFUL_CONNECTION, session_present);
-                    inform_client_id_and_clean_session(client);
                 }
                 Err(error_code) => {
                     send_connection_result(client, error_code, 0);
@@ -176,16 +177,45 @@ fn close_streams(client: &mut ClientFlags) {
     info!("Cerre el stream con el coordinator!");
 }
 
-fn inform_client_id_and_clean_session(client: &mut ClientFlags) {
+fn inform_new_connection(
+    client: &mut ClientFlags,
+    will_topic: Option<String>,
+    will_message: Option<String>,
+    will_qos: u8,
+    will_retain: bool,
+) {
     if let Some(client_id) = &client.client_id {
-        let mut bytes: Vec<u8> = client_id.as_bytes().to_vec();
+        let mut client_id_bytes = client_id.as_bytes().to_vec();
+        let mut bytes: Vec<u8> = vec![client_id_bytes.len() as u8];
+        bytes.append(&mut client_id_bytes);
         bytes.push(client.clean_session);
-        let mut buffer_packet: Vec<u8> = Vec::new();
-        buffer_packet.append(&mut bytes);
+        match will_topic {
+            Some(topic) => {
+                bytes.push(1);
+                if let Some(message) = will_message {
+                    let mut topic_bytes = topic.as_bytes().to_vec();
+                    let mut message_bytes = message.as_bytes().to_vec();
+                    bytes.push(topic_bytes.len() as u8);
+                    bytes.append(&mut topic_bytes);
+                    bytes.push(message_bytes.len() as u8);
+                    bytes.append(&mut message_bytes);
+                    bytes.push(will_qos);
+                    if will_retain {
+                        bytes.push(1);
+                    } else {
+                        bytes.push(0);
+                    }
+                }
+            }
+            None => {
+                bytes.push(0);
+                println!("{}", bytes.len());
+            }
+        }
         let packet_to_server = PacketThings {
             thread_id: client.id,
             packet_type: Packet::Connect,
-            bytes: buffer_packet,
+            bytes,
         };
         let sender = client.sender.lock();
         match sender {
@@ -409,16 +439,17 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
     }
 
     client.client_id = client_id;
-    client.username = username;
-    client.password = password;
-    client.will_topic = will_topic;
-    client.will_message = will_message;
-    client.will_qos = flag_will_qos;
-    client.will_retained = flag_will_retain;
     client.clean_session = flag_clean_session as u8;
     debug!("clean session {}", flag_clean_session);
     client.keep_alive = keep_alive;
 
+    inform_new_connection(
+        client,
+        will_topic,
+        will_message,
+        flag_will_qos,
+        flag_will_retain,
+    );
     Ok(1) // TODO: Persistent Sessions
 }
 
@@ -513,12 +544,6 @@ mod tests {
             client_id: None,
             connection: &mut TcpStream::connect("127.0.0.1:25525").unwrap(),
             sender: client_sender,
-            username: None,
-            password: None,
-            will_topic: None,
-            will_message: None,
-            will_qos: 0,
-            will_retained: false,
             clean_session: 1,
             keep_alive: 1000,
         };
