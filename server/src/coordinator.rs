@@ -1,6 +1,7 @@
 use crate::client::Client;
 use crate::packet::{bytes2string, Packet};
 use crate::server::PacketThings;
+use crate::utils::remaining_length_encode;
 use crate::wildcard::compare_topic;
 use crate::utils::remaining_length_encode;
 use std::collections::HashMap;
