@@ -74,10 +74,10 @@ impl From<Packet> for u8 {
 pub fn read_packet(
     client: &mut ClientFlags,
     packet_type: Packet,
-    buffer_size: u8,
+    buffer_size: usize,
     byte_0: u8,
 ) -> Result<(), std::io::Error> {
-    let mut buffer_packet: Vec<u8> = vec![0; buffer_size as usize];
+    let mut buffer_packet: Vec<u8> = vec![0; buffer_size];
     client.connection.read_exact(&mut buffer_packet)?;
     match packet_type {
         Packet::Connect => {

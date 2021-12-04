@@ -2,6 +2,7 @@ use crate::client::Client;
 use crate::packet::{bytes2string, Packet};
 use crate::server::PacketThings;
 use crate::wildcard::compare_topic;
+use crate::utils::remaining_length_encode;
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
@@ -315,7 +316,9 @@ fn send_publish_to_customer(
     topic_name: &str,
 ) -> Vec<u8> {
     packet.bytes.remove(0);
-    let mut buffer_packet: Vec<u8> = vec![Packet::Publish.into(), packet.bytes.len() as u8];
+    let mut buffer_packet: Vec<u8> = vec![Packet::Publish.into()];
+    let mut remaining_length = remaining_length_encode(packet.bytes.len());
+    buffer_packet.append(&mut remaining_length);
     buffer_packet.extend(&packet.bytes);
     match lock_clients.lock() {
         Ok(mut locked) => {
@@ -427,12 +430,11 @@ fn send_subback(
     packet: &PacketThings,
     vector_with_qos: Vec<u8>,
 ) {
-    let mut buffer: Vec<u8> = vec![
-        Packet::SubAck.into(),
-        (vector_with_qos.len() as u8 + 2_u8) as u8,
-        packet.bytes[0],
-        packet.bytes[1],
-    ];
+    let mut buffer: Vec<u8> = vec![Packet::SubAck.into()];
+    let mut remaining_length = remaining_length_encode(vector_with_qos.len() + 2);
+    buffer.append(&mut remaining_length);
+    buffer.push(packet.bytes[0]);
+    buffer.push(packet.bytes[1]);
     for bytes in vector_with_qos {
         buffer.push(bytes);
     }

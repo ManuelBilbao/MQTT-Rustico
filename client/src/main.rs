@@ -12,8 +12,10 @@ use std::time::Duration;
 use crate::packet::{
     _send_disconnect_packet, read_package, send_packet_connection, send_pingreq_packet,
 };
+use crate::utils::remaining_length_read;
 
 mod packet;
+mod utils;
 
 static CLIENT_ARGS: usize = 3;
 
@@ -95,7 +97,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
             sleep(Duration::from_secs(keep_alive.into()));
         });
         loop {
-            let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
+            let mut num_buffer = [0u8; 1]; //Recibimos 2 bytes
             if signal_clone.load(Ordering::Relaxed) {
                 //Cerre el stream
                 println!("Ya se cerro el stream!");
@@ -104,7 +106,8 @@ fn client_run(address: &str) -> std::io::Result<()> {
             match read_stream.read_exact(&mut num_buffer) {
                 Ok(_) => {
                     let package_type = num_buffer[0].into();
-                    read_package(&mut read_stream, package_type, num_buffer[1]).unwrap();
+                    let buff_size = remaining_length_read(&mut read_stream).unwrap();
+                    read_package(&mut read_stream, package_type, buff_size).unwrap();
                 }
                 Err(_) => {
                     println!("No se");
@@ -146,18 +149,19 @@ fn create_byte_with_flags(flags: &FlagsConexion, will_qos: &u8) -> u8 {
     byte_flags
 }
 
-fn calculate_connection_length(flags: &FlagsConexion, user_information: &UserInformation) -> u8 {
-    let mut lenght: u8 = 12;
-    lenght += user_information.id_length as u8;
+fn calculate_connection_length(flags: &FlagsConexion, user_information: &UserInformation) -> usize {
+    let mut lenght: usize = 12;
+    lenght += user_information.id_length as usize;
     if flags.username {
-        lenght += (user_information.username_length + 2) as u8;
+        lenght += (user_information.username_length as usize) + 2;
     }
     if flags.password {
-        lenght += (user_information.password_length + 2) as u8;
+        lenght += (user_information.password_length as usize) + 2;
     }
     if flags.will_flag {
-        lenght +=
-            (user_information.will_topic_length + user_information.will_message_length + 4) as u8;
+        lenght += (user_information.will_topic_length as usize)
+            + (user_information.will_message_length as usize)
+            + 4;
     }
     lenght
 }

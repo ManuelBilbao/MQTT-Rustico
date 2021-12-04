@@ -8,6 +8,7 @@ mod configuration;
 mod coordinator;
 mod packet;
 mod server;
+mod utils;
 mod wildcard;
 
 static SERVER_ARGS: usize = 2;

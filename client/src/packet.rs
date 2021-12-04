@@ -1,3 +1,4 @@
+use crate::utils::remaining_length_encode;
 use crate::{calculate_connection_length, create_byte_with_flags, FlagsConexion, UserInformation};
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -64,9 +65,9 @@ impl From<Packet> for u8 {
 pub fn read_package(
     stream: &mut TcpStream,
     package_type: Packet,
-    buffer: u8,
+    buffer_size: usize,
 ) -> Result<(), std::io::Error> {
-    let mut buffer_paquete: Vec<u8> = vec![0; buffer as usize];
+    let mut buffer_paquete: Vec<u8> = vec![0; buffer_size];
     let mut stream_clone = stream.try_clone().unwrap();
     stream.read_exact(&mut buffer_paquete)?;
     match package_type {
@@ -160,10 +161,11 @@ pub fn send_packet_connection(
     flags: FlagsConexion,
     user_information: UserInformation,
 ) {
-    let total_lenght: u8 = calculate_connection_length(&flags, &user_information);
-    let mut buffer: Vec<u8> = Vec::with_capacity(total_lenght.into());
+    let buffer_size = calculate_connection_length(&flags, &user_information);
+    let mut remaining_length = remaining_length_encode(buffer_size);
+    let mut buffer: Vec<u8> = Vec::with_capacity(buffer_size);
     buffer.push(0x10);
-    buffer.push(total_lenght as u8);
+    buffer.append(&mut remaining_length);
     buffer.push(0);
     buffer.push(MQTT_VERSION);
     buffer.push(77); // M
@@ -230,10 +232,11 @@ pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
         buffer.push(0x01); // QoS 1, TODO: parametrizar
     }
 
-    buffer.insert(0, buffer.len() as u8); // Remaining length
-    buffer.insert(0, Packet::Subscribe.into());
+    let mut final_buffer = remaining_length_encode(buffer.len());
+    final_buffer.insert(0, Packet::Subscribe.into());
+    final_buffer.append(&mut buffer);
 
-    stream.write_all(&buffer).unwrap();
+    stream.write_all(&final_buffer).unwrap();
 }
 
 pub fn _send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
@@ -245,10 +248,11 @@ pub fn _send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
         buffer.append(&mut topic.as_bytes().to_vec());
     }
 
-    buffer.insert(0, buffer.len() as u8); // Remaining length
-    buffer.insert(0, Packet::Unsubscribe.into());
+    let mut final_buffer = remaining_length_encode(buffer.len());
+    final_buffer.insert(0, Packet::Unsubscribe.into());
+    final_buffer.append(&mut buffer);
 
-    stream.write_all(&buffer).unwrap();
+    stream.write_all(&final_buffer).unwrap();
 }
 
 pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: String, dup: bool) {
@@ -260,15 +264,17 @@ pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: Stri
 
     buffer.append(&mut message.as_bytes().to_vec());
 
-    buffer.insert(0, buffer.len() as u8);
-
     let bit_dup: u8 = match dup {
         true => 0x04,
         false => 0x00,
     };
-    buffer.insert(0, u8::from(Packet::Publish) | bit_dup); // TODO: agregar QoS y Retain
 
-    stream.write_all(&buffer).unwrap();
+    let mut final_buffer = remaining_length_encode(buffer.len());
+
+    final_buffer.insert(0, u8::from(Packet::Publish) | bit_dup); // TODO: agregar QoS y Retain
+    final_buffer.append(&mut buffer);
+
+    stream.write_all(&final_buffer).unwrap();
 }
 
 pub fn send_pingreq_packet(stream: &mut TcpStream) {
