@@ -4,7 +4,7 @@ use tracing::{error, info};
 const DEFAULT_PORT: u16 = 7666;
 const DEFAULT_DUMPFILE: &str = "dump.txt";
 const DEFAULT_LOGFILE: &str = "logfile.txt";
-const DEFAULT_IP: &str = "127.0.0.1";
+const DEFAULT_IP: &str = "192.168.0.8";
 
 pub struct Configuration {
     port: u16,

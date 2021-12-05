@@ -230,14 +230,18 @@ pub fn send_packet_connection(
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, _qos: bool) {
+pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, qos: bool) {
     let mut buffer: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
         buffer.push((topic.len() >> 8) as u8);
         buffer.push((topic.len() & 0x00FF) as u8);
         buffer.append(&mut topic.as_bytes().to_vec());
-        buffer.push(0x01); // QoS 1, TODO: parametrizar
+        if qos {
+            buffer.push(1);
+        } else {
+            buffer.push(0);
+        }
     }
 
     let mut final_buffer = remaining_length_encode(buffer.len());
@@ -268,8 +272,8 @@ pub fn _send_publish_packet(
     topic: String,
     message: String,
     dup: bool,
-    _qos: bool,
-    _retain: bool,
+    qos: bool,
+    retain: bool,
 ) {
     let mut buffer: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
     buffer.append(&mut topic.as_bytes().to_vec());
@@ -284,9 +288,16 @@ pub fn _send_publish_packet(
         false => 0x00,
     };
 
+    let retain_byte: u8 = if retain { 0x01 } else { 0 };
+    let qos_byte: u8 = if qos { 0x02 } else { 0 };
+
     let mut final_buffer = remaining_length_encode(buffer.len());
 
-    final_buffer.insert(0, u8::from(Packet::Publish) | bit_dup); // TODO: agregar QoS y Retain (QOS=TRUE => QOS 1, QOS=FALSE => QOS 0)
+    let mut first_byte = u8::from(Packet::Publish) | bit_dup;
+    first_byte = first_byte | retain_byte;
+    first_byte = first_byte | qos_byte;
+
+    final_buffer.insert(0, first_byte);
     final_buffer.append(&mut buffer);
 
     stream.write_all(&final_buffer).unwrap();

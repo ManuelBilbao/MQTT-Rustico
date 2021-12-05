@@ -512,10 +512,12 @@ fn send_retained_messages(
                             buffer_to_send.extend(&topic_retained.message);
                             match client.channel.send(buffer_to_send) {
                                 Ok(_) => {
-                                    info!("Publish enviado al cliente")
+                                    println!("Envio");
+                                    info!("Publish retained enviado al cliente")
                                 }
                                 Err(_) => {
-                                    error!("Error al enviar Publish al cliente")
+                                    println!("Error");
+                                    error!("Error al enviar Publish retained al cliente")
                                 }
                             }
                         }
