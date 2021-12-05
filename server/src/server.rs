@@ -118,7 +118,7 @@ pub fn handle_client(
     read_packets_from_client(&mut current_client)
 }
 
-fn read_packets_from_client(mut current_client: &mut ClientFlags) {
+fn read_packets_from_client(current_client: &mut ClientFlags) {
     loop {
         let mut num_buffer = [0u8; 1]; //Recibimos 2 bytes
         match current_client.connection.read_exact(&mut num_buffer) {
@@ -126,7 +126,7 @@ fn read_packets_from_client(mut current_client: &mut ClientFlags) {
                 //Acordarse de leerlo  como BE, let mensaje = u32::from_be_bytes(num_buffer);
                 let packet_type = num_buffer[0].into();
                 let buff_size = remaining_length_read(&mut current_client.connection).unwrap();
-                read_packet(&mut current_client, packet_type, buff_size, num_buffer[0]).unwrap();
+                read_packet(current_client, packet_type, buff_size, num_buffer[0]).unwrap();
             }
             Err(_) => {
                 inform_client_disconnect_to_coordinator(

@@ -7,6 +7,9 @@ edition = "2018"
 
 [dependencies]
 
+gtk = "0.14.3"
+glib = "0.14.8"
+
 [[bin]]
 name = "cliente"
 path = "src/main.rs"

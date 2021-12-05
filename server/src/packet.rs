@@ -209,7 +209,6 @@ fn inform_new_connection(
             }
             None => {
                 bytes.push(0);
-                println!("{}", bytes.len());
             }
         }
         let packet_to_server = PacketThings {
@@ -419,7 +418,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
     }
 
     //PROCESAR
-    if client_id == None && !flag_clean_session {
+    if client_id == None {
         return Err(CONNECTION_IDENTIFIER_REFUSED);
     }
 

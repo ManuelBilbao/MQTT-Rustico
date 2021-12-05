@@ -3,7 +3,6 @@ use crate::packet::{bytes2string, Packet};
 use crate::server::PacketThings;
 use crate::utils::remaining_length_encode;
 use crate::wildcard::compare_topic;
-use crate::utils::remaining_length_encode;
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
@@ -122,7 +121,9 @@ fn send_lastwill(
                                     match client.1.channel.send(buffer_to_send) {
                                         Ok(_) => {
                                             info!("Publish enviado al cliente");
-                                            client.1.publishes_received.push(buffer_clone);
+                                            if client.1.clean_session == 1 {
+                                                client.1.publishes_received.push(buffer_clone);
+                                            }
                                         }
                                         Err(_) => {
                                             debug!("Error al enviar Publish al cliente")

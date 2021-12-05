@@ -2,6 +2,7 @@ use crate::utils::remaining_length_encode;
 use crate::{calculate_connection_length, create_byte_with_flags, FlagsConexion, UserInformation};
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::sync::mpsc::Sender;
 
 const MQTT_VERSION: u8 = 4;
 
@@ -66,17 +67,19 @@ pub fn read_package(
     stream: &mut TcpStream,
     package_type: Packet,
     buffer_size: usize,
+    puback_sender: Sender<String>,
+    message_sender: Sender<String>,
 ) -> Result<(), std::io::Error> {
     let mut buffer_paquete: Vec<u8> = vec![0; buffer_size];
     let mut stream_clone = stream.try_clone().unwrap();
     stream.read_exact(&mut buffer_paquete)?;
     match package_type {
         Packet::ConnAck => read_connack(buffer_paquete),
-        Packet::PubAck => read_puback(buffer_paquete),
+        Packet::PubAck => read_puback(buffer_paquete, puback_sender),
         Packet::SubAck => read_suback(buffer_paquete),
         Packet::UnsubAck => read_unsuback(buffer_paquete),
         Packet::PingResp => read_pingresp(),
-        Packet::Publish => read_publish(buffer_paquete, &mut stream_clone),
+        Packet::Publish => read_publish(buffer_paquete, &mut stream_clone, message_sender),
         _ => {
             // Manejar
             println!("No se que paqeute es");
@@ -93,9 +96,12 @@ pub fn read_connack(buffer: Vec<u8>) {
     );
 }
 
-pub fn read_puback(buffer: Vec<u8>) {
+pub fn read_puback(buffer: Vec<u8>, puback_sender: Sender<String>) {
     let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
     println!("Recibido PubAck. Packet Identifier: {}.", packet_identifier);
+    puback_sender
+        .send("Publish sent successfully\n".to_string())
+        .expect("Error al mandar texto al gui");
 }
 
 pub fn read_suback(buffer: Vec<u8>) {
@@ -124,23 +130,29 @@ pub fn read_pingresp() {
     // PingResp viene vacio
     // TODO: Do something
 }
-pub fn read_publish(buffer: Vec<u8>, stream: &mut TcpStream) {
+pub fn read_publish(buffer: Vec<u8>, stream: &mut TcpStream, message_sender: Sender<String>) {
     println!("Recibí un mensaje");
     let topic_name_len: usize = ((buffer[0] as usize) << 8) + buffer[1] as usize;
     match bytes2string(&buffer[2..(2 + topic_name_len)]) {
-        Ok(topic_name) => {
+        Ok(mut topic_name) => {
             println!("Topico del mensaje: {}", topic_name);
+            topic_name += "-";
+            match bytes2string(&buffer[(4 + topic_name_len)..buffer.len()]) {
+                Ok(mut message) => {
+                    println!("Mensaje: {}", message);
+                    message += "\n";
+                    let topic_and_message = topic_name + &message;
+                    message_sender
+                        .send(topic_and_message)
+                        .expect("Error al mandar texto al gui");
+                }
+                Err(_) => {
+                    println!("Error procesando mensaje");
+                }
+            }
         }
         Err(_) => {
             println!("Error procesando topico");
-        }
-    }
-    match bytes2string(&buffer[(4 + topic_name_len)..buffer.len()]) {
-        Ok(message) => {
-            println!("Mensaje: {}", message);
-        }
-        Err(_) => {
-            println!("Error procesando mensaje");
         }
     }
     let mut packet_identifier = [0u8; 2];

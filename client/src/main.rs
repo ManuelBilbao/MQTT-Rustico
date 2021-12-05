@@ -1,9 +1,11 @@
 use core::sync::atomic::Ordering;
-use std::env::args;
+/*use std::env::args;*/
+use interface::run_connection_window;
 use std::io::Read;
 use std::net::{Shutdown, TcpStream};
 use std::process::exit;
 use std::sync::atomic::AtomicBool;
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::thread;
 use std::thread::sleep;
@@ -12,12 +14,15 @@ use std::time::Duration;
 use crate::packet::{
     _send_disconnect_packet, read_package, send_packet_connection, send_pingreq_packet,
 };
+mod interface;
+mod packet;
+mod publish_interface;
+mod subscription_interface;
 use crate::utils::remaining_length_read;
 
-mod packet;
 mod utils;
 
-static CLIENT_ARGS: usize = 3;
+/*static CLIENT_ARGS: usize = 3;*/
 
 pub struct FlagsConexion {
     username: bool,
@@ -43,7 +48,7 @@ pub struct UserInformation {
 }
 
 fn main() -> Result<(), ()> {
-    let argv = args().collect::<Vec<String>>();
+    /*let argv = args().collect::<Vec<String>>();
     if argv.len() != CLIENT_ARGS {
         println!("Invalid number of arguments");
         let app_name = &argv[0];
@@ -52,13 +57,19 @@ fn main() -> Result<(), ()> {
     }
     let address = argv[1].clone() + ":" + &argv[2];
     println!("Connecting to... {:?}", address);
-    client_run(&address).unwrap();
+    client_run(&address).unwrap();*/
+    run_connection_window();
     Ok(())
 }
 
-fn client_run(address: &str) -> std::io::Result<()> {
-    let mut stream = TcpStream::connect(address)?;
-    let keep_alive = 100;
+fn client_run(
+    mut stream: TcpStream,
+    user_information: UserInformation,
+    puback_sender: Sender<String>,
+    message_sender: Sender<String>,
+) -> std::io::Result<()> {
+    /*let mut stream = TcpStream::connect(address)?;*/
+    let keep_alive: u16 = 100;
     /*let frase = "Hola quiero conectarme".to_string();
     let size_be = (frase.len() as u32).to_be_bytes();
     socket.write(&size_be)?;
@@ -70,7 +81,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
         will_flag: false,
         clean_session: false,
     };
-    let user_information = UserInformation {
+    /*let user_information = UserInformation {
         id_length: 1,
         id: "2".to_owned(),
         username_length: 6,
@@ -83,7 +94,7 @@ fn client_run(address: &str) -> std::io::Result<()> {
         will_message: None,
         will_qos: 1,
         keep_alive,
-    };
+    };*/
     send_packet_connection(&mut stream, flags, user_information);
     //thread spawn leer del servidor
     let mut read_stream = stream.try_clone().unwrap();
@@ -107,7 +118,14 @@ fn client_run(address: &str) -> std::io::Result<()> {
                 Ok(_) => {
                     let package_type = num_buffer[0].into();
                     let buff_size = remaining_length_read(&mut read_stream).unwrap();
-                    read_package(&mut read_stream, package_type, buff_size).unwrap();
+                    read_package(
+                        &mut read_stream,
+                        package_type,
+                        buff_size,
+                        puback_sender.clone(),
+                        message_sender.clone(),
+                    )
+                    .unwrap();
                 }
                 Err(_) => {
                     println!("No se");

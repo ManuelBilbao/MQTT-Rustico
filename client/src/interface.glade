@@ -1,0 +1,641 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.38.2 -->
+<interface>
+  <requires lib="gtk+" version="3.24"/>
+  <object class="GtkWindow" id="app_window">
+    <property name="can-focus">False</property>
+    <child>
+      <object class="GtkNotebook">
+        <property name="visible">True</property>
+        <property name="can-focus">True</property>
+        <child>
+          <object class="GtkFixed" id="fixed1">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Connection window</property>
+                <attributes>
+                  <attribute name="scale" value="4"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">48</property>
+                <property name="y">24</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="ip_entry">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-add</property>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">190</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="port_entry">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-add</property>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">352</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="client_id_entry">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-add</property>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">499</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">IP Address:</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">134</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">100</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Port:</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">288</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">100</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Client ID:</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">429</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="connect_button">
+                <property name="label" translatable="yes">Connect!</property>
+                <property name="width-request">289</property>
+                <property name="height-request">103</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="x">723</property>
+                <property name="y">610</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="username_entry">
+                <property name="width-request">146</property>
+                <property name="height-request">19</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-add</property>
+              </object>
+              <packing>
+                <property name="x">613</property>
+                <property name="y">191</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">214</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Username:</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">577</property>
+                <property name="y">120</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">203</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Password:</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">577</property>
+                <property name="y">216</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="password_entry">
+                <property name="width-request">168</property>
+                <property name="height-request">34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-add</property>
+              </object>
+              <packing>
+                <property name="x">613</property>
+                <property name="y">285</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">242</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Last Will Message:</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">612</property>
+                <property name="y">346</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">196</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Last Will Topic:</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">612</property>
+                <property name="y">433</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="will_message_entry">
+                <property name="width-request">168</property>
+                <property name="height-request">34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-add</property>
+              </object>
+              <packing>
+                <property name="x">613</property>
+                <property name="y">412</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="will_topic_entry">
+                <property name="width-request">168</property>
+                <property name="height-request">34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-add</property>
+              </object>
+              <packing>
+                <property name="x">613</property>
+                <property name="y">497</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="user_pass_label">
+                <property name="width-request">220</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">
+</property>
+                <attributes>
+                  <attribute name="scale" value="1"/>
+                  <attribute name="foreground" value="#e0e01b1b2424"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">792</property>
+                <property name="y">176</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="client_id_label">
+                <property name="width-request">233</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">
+</property>
+                <attributes>
+                  <attribute name="scale" value="1"/>
+                  <attribute name="foreground" value="#e0e01b1b2424"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">201</property>
+                <property name="y">474</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="connection_label">
+                <property name="width-request">297</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                  <attribute name="foreground" value="#e0e01b1b2424"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">416</property>
+                <property name="y">628</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="ip_label">
+                <property name="width-request">100</property>
+                <property name="height-request">33</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">
+</property>
+                <attributes>
+                  <attribute name="scale" value="1"/>
+                  <attribute name="foreground" value="#e0e01b1b2424"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">243</property>
+                <property name="y">190</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="port_label">
+                <property name="width-request">100</property>
+                <property name="height-request">33</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">
+</property>
+                <attributes>
+                  <attribute name="scale" value="1"/>
+                  <attribute name="foreground" value="#e0e01b1b2424"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">245</property>
+                <property name="y">353</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="disconnect_button">
+                <property name="label" translatable="yes">Disconnect</property>
+                <property name="width-request">287</property>
+                <property name="height-request">102</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="x">725</property>
+                <property name="y">611</property>
+              </packing>
+            </child>
+          </object>
+        </child>
+        <child type="tab">
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">Connect</property>
+          </object>
+          <packing>
+            <property name="tab-fill">False</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkFixed">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Publish window</property>
+                <attributes>
+                  <attribute name="scale" value="4"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">48</property>
+                <property name="y">24</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Message</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">134</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="publish_button">
+                <property name="label" translatable="yes">Publish</property>
+                <property name="width-request">289</property>
+                <property name="height-request">103</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="x">716</property>
+                <property name="y">624</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="message_entry">
+                <property name="width-request">500</property>
+                <property name="height-request">20</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-edit</property>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">200</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">100</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Topic</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">356</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="topic_entry">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-edit</property>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">437</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="puback_label">
+                <property name="width-request">215</property>
+                <property name="height-request">54</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                  <attribute name="foreground" value="#3333d1d17a7a"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">700</property>
+                <property name="y">544</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child type="tab">
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">Publish</property>
+          </object>
+          <packing>
+            <property name="position">1</property>
+            <property name="tab-fill">False</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkFixed">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Subscription window</property>
+                <attributes>
+                  <attribute name="scale" value="4"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">48</property>
+                <property name="y">24</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="subscribe_entry">
+                <property name="width-request">168</property>
+                <property name="height-request">34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-find-and-replace</property>
+              </object>
+              <packing>
+                <property name="x">49</property>
+                <property name="y">284</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="unsubscribe_entry">
+                <property name="width-request">168</property>
+                <property name="height-request">34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="primary-icon-stock">gtk-dialog-error</property>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">526</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">367</property>
+                <property name="height-request">51</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Subscribe to topic:</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">47</property>
+                <property name="y">213</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="unsubscribe_entr">
+                <property name="width-request">474</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Unsubscribe from topic:</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">447</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">367</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Message received:</property>
+                <attributes>
+                  <attribute name="scale" value="3"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">630</property>
+                <property name="y">136</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">193</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Format:  Topic-Message</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">625</property>
+                <property name="y">189</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="unsubscribe_button">
+                <property name="label" translatable="yes">Unsubscribe!</property>
+                <property name="width-request">121</property>
+                <property name="height-request">34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="x">230</property>
+                <property name="y">526</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="subscribe_button">
+                <property name="label" translatable="yes">Subscribe!</property>
+                <property name="width-request">104</property>
+                <property name="height-request">34</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+              </object>
+              <packing>
+                <property name="x">226</property>
+                <property name="y">284</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="message_label">
+                <property name="width-request">67</property>
+                <property name="height-request">40</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="max-width-chars">10</property>
+                <attributes>
+                  <attribute name="style" value="italic"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">625</property>
+                <property name="y">249</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child type="tab">
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">Subscribe</property>
+          </object>
+          <packing>
+            <property name="position">2</property>
+            <property name="tab-fill">False</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
