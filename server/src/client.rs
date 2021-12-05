@@ -49,9 +49,6 @@ impl Client {
     }
 
     pub fn is_subscribed_to_qos1(&self, topic: &str) -> bool {
-        if self.disconnected {
-            return false;
-        }
         let mut subscribed: bool = false;
         for topic_aux in &self.topics {
             if topic_aux.qos == 1 && compare_topic(topic, topic_aux.topic.as_str()) {
@@ -62,9 +59,6 @@ impl Client {
     }
 
     pub fn is_subscribed_to(&self, topic: &str) -> bool {
-        if self.disconnected {
-            return false;
-        }
         let mut subscribed: bool = false;
         for topic_aux in &self.topics {
             if compare_topic(topic, topic_aux.topic.as_str()) {

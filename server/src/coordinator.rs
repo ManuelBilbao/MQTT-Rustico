@@ -365,13 +365,8 @@ fn send_publish_to_customer(
 }
 
 fn process_publish(packet: &mut PacketThings) -> String {
-    let size = packet.bytes.len();
     let topic_name_len: usize = ((packet.bytes[1] as usize) << 8) + packet.bytes[2] as usize;
     let topic_name = bytes2string(&packet.bytes[3..(3 + topic_name_len)]);
-    let mut _topic_desc = String::from(""); //INICIO RETAINED
-    if size > 3 + topic_name_len {
-        _topic_desc = bytes2string(&packet.bytes[(5 + topic_name_len)..(size)]);
-    }
     topic_name
 }
 
@@ -512,11 +507,9 @@ fn send_retained_messages(
                             buffer_to_send.extend(&topic_retained.message);
                             match client.channel.send(buffer_to_send) {
                                 Ok(_) => {
-                                    println!("Envio");
                                     info!("Publish retained enviado al cliente")
                                 }
                                 Err(_) => {
-                                    println!("Error");
                                     error!("Error al enviar Publish retained al cliente")
                                 }
                             }
