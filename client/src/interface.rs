@@ -3,8 +3,9 @@ extern crate gtk;
 use self::gtk::atk::glib::clone;
 use crate::packet::_send_disconnect_packet;
 use crate::publish_interface::build_publish_ui;
+use crate::publish_interface::ReceiverWindow;
 use crate::subscription_interface::build_subscription_ui;
-use crate::{client_run, UserInformation};
+use crate::{client_run, FlagsConexion, UserInformation};
 use gtk::prelude::*;
 use std::net::TcpStream;
 use std::sync::mpsc;
@@ -30,6 +31,8 @@ fn build_connection_ui(app: &gtk::Application) {
     let ip_entry: gtk::Entry = connect_builder.object("ip_entry").unwrap();
     let port_entry: gtk::Entry = connect_builder.object("port_entry").unwrap();
     let client_id_entry: gtk::Entry = connect_builder.object("client_id_entry").unwrap();
+    let clean_session_check: gtk::ToggleButton =
+        connect_builder.object("clean_session_check").unwrap();
     let username_entry: gtk::Entry = connect_builder.object("username_entry").unwrap();
     let password_entry: gtk::Entry = connect_builder.object("password_entry").unwrap();
     let will_message_entry: gtk::Entry = connect_builder.object("will_message_entry").unwrap();
@@ -41,20 +44,27 @@ fn build_connection_ui(app: &gtk::Application) {
     let ip_label: gtk::Label = connect_builder.object("ip_label").unwrap();
     let port_label: gtk::Label = connect_builder.object("port_label").unwrap();
     let disconnect_button: gtk::Button = connect_builder.object("disconnect_button").unwrap();
+    let qos_will_switch: gtk::Switch = connect_builder.object("QOS_will_switch").unwrap();
     disconnect_button.hide();
     let app_destroy_clone = app.clone();
     connect_window.connect_destroy(move |_w| {
         app_destroy_clone.quit();
     });
     let app_clone = app.clone();
-    connect_button.connect_clicked(clone!(@weak disconnect_button, @weak connect_button, @weak ip_entry, @weak port_entry, @weak client_id_entry, @weak username_entry, @weak password_entry, @weak will_message_entry, @weak will_topic_entry, @weak client_id_label, @weak user_pass_label, @weak connection_label, @weak ip_label, @weak port_label => move |_|{
+    connect_button.connect_clicked(clone!(@weak qos_will_switch, @weak disconnect_button, @weak connect_button, @weak ip_entry, @weak port_entry, @weak client_id_entry, @weak username_entry, @weak password_entry, @weak will_message_entry, @weak will_topic_entry, @weak client_id_label, @weak user_pass_label, @weak connection_label, @weak ip_label, @weak port_label, @weak clean_session_check => move |_|{
         let ip = ip_entry.text();
         let port = port_entry.text();
         let client_id = client_id_entry.text();
+        let clean_session = clean_session_check.is_active();
         let username = username_entry.text();
         let password = password_entry.text();
         let will_message = will_message_entry.text();
         let will_topic = will_topic_entry.text();
+        let mut will_qos:u8 = 0;
+        if qos_will_switch.is_active(){
+            will_qos = 1;
+        }
+
         if client_id.len() != 0 && user_and_password_correct(username.as_str(), password.as_str()) && ip.len() != 0 && port.len() != 0{
             client_id_label.set_text("");
             user_pass_label.set_text("");
@@ -72,8 +82,15 @@ fn build_connection_ui(app: &gtk::Application) {
                 will_topic: Some(will_topic.to_string()),
                 will_message_length: will_message.len() as u16,
                 will_message: Some(will_message.to_string()),
-                will_qos: 1,
+                will_qos,
                 keep_alive: 0,
+            };
+            let flags = FlagsConexion {
+                username: username.len() > 0 ,
+                password: password.len() > 0,
+                will_retain: false,
+                will_flag: will_topic.len() > 0,
+                clean_session,
             };
             match TcpStream::connect(&address){
                 Ok(tcpstream) => {
@@ -85,6 +102,12 @@ fn build_connection_ui(app: &gtk::Application) {
                     mpsc::channel();
                     let (message_sender, message_receiver): (Sender<String>, Receiver<String>) =
                     mpsc::channel();
+                    let (connack_sender, connack_receiver): (Sender<String>, Receiver<String>) =
+                    mpsc::channel();
+                    let mut connack_window = ReceiverWindow::new().unwrap();
+                    let (con_sender, con_receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                    connack_window.build(&connect_builder, con_receiver, "connection_succ_label");
+                    connack_window.start(con_sender, connack_receiver);
                     let app_clone_2 = app_clone.clone();
                     let  stream_clone_2 = stream_clone.try_clone().expect("Cannot clone stream");
                     disconnect_button.connect_clicked(move |_| {
@@ -93,7 +116,7 @@ fn build_connection_ui(app: &gtk::Application) {
                         app_clone_2.quit();
                     });
                     thread::spawn(move| |{
-                        client_run(stream_clone, user, puback_sender, message_sender).unwrap();
+                        client_run(stream_clone, user, flags, connack_sender, puback_sender, message_sender).unwrap();
                     });
 
                     build_publish_ui(&mut stream, client_id.to_string(), puback_receiver, &connect_builder);

@@ -63,18 +63,19 @@ impl From<Packet> for u8 {
     }
 }
 
-pub fn read_package(
+pub fn read_packet(
     stream: &mut TcpStream,
     package_type: Packet,
     buffer_size: usize,
     puback_sender: Sender<String>,
     message_sender: Sender<String>,
+    connack_sender: Sender<String>,
 ) -> Result<(), std::io::Error> {
     let mut buffer_paquete: Vec<u8> = vec![0; buffer_size];
     let mut stream_clone = stream.try_clone().unwrap();
     stream.read_exact(&mut buffer_paquete)?;
     match package_type {
-        Packet::ConnAck => read_connack(buffer_paquete),
+        Packet::ConnAck => read_connack(buffer_paquete, connack_sender),
         Packet::PubAck => read_puback(buffer_paquete, puback_sender),
         Packet::SubAck => read_suback(buffer_paquete),
         Packet::UnsubAck => read_unsuback(buffer_paquete),
@@ -87,9 +88,16 @@ pub fn read_package(
     }
     Ok(())
 }
-pub fn read_connack(buffer: Vec<u8>) {
+pub fn read_connack(buffer: Vec<u8>, connack_sender: Sender<String>) {
     let session_present = buffer[0];
     let return_code = buffer[1];
+    println!(
+        "Recibe connack con sp: {} y return code {}",
+        session_present, return_code
+    );
+    connack_sender
+        .send("Connected successfully\n".to_string())
+        .expect("Error al mandar texto al gui");
 }
 
 pub fn read_puback(buffer: Vec<u8>, puback_sender: Sender<String>) {
@@ -222,7 +230,7 @@ pub fn send_packet_connection(
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, _qos: bool) {
     let mut buffer: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
 
     for topic in topics.iter() {
@@ -255,7 +263,14 @@ pub fn _send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
     stream.write_all(&final_buffer).unwrap();
 }
 
-pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: String, dup: bool) {
+pub fn _send_publish_packet(
+    stream: &mut TcpStream,
+    topic: String,
+    message: String,
+    dup: bool,
+    _qos: bool,
+    _retain: bool,
+) {
     let mut buffer: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
     buffer.append(&mut topic.as_bytes().to_vec());
 
@@ -271,7 +286,7 @@ pub fn _send_publish_packet(stream: &mut TcpStream, topic: String, message: Stri
 
     let mut final_buffer = remaining_length_encode(buffer.len());
 
-    final_buffer.insert(0, u8::from(Packet::Publish) | bit_dup); // TODO: agregar QoS y Retain
+    final_buffer.insert(0, u8::from(Packet::Publish) | bit_dup); // TODO: agregar QoS y Retain (QOS=TRUE => QOS 1, QOS=FALSE => QOS 0)
     final_buffer.append(&mut buffer);
 
     stream.write_all(&final_buffer).unwrap();

@@ -12,7 +12,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use crate::packet::{
-    _send_disconnect_packet, read_package, send_packet_connection, send_pingreq_packet,
+    _send_disconnect_packet, read_packet, send_packet_connection, send_pingreq_packet,
 };
 mod interface;
 mod packet;
@@ -55,17 +55,12 @@ fn main() -> Result<(), ()> {
 fn client_run(
     mut stream: TcpStream,
     user_information: UserInformation,
+    flags: FlagsConexion,
+    connack_sender: Sender<String>,
     puback_sender: Sender<String>,
     message_sender: Sender<String>,
 ) -> std::io::Result<()> {
     let keep_alive: u16 = 100;
-    let flags = FlagsConexion {
-        username: true,
-        password: true,
-        will_retain: false,
-        will_flag: false,
-        clean_session: false,
-    };
     send_packet_connection(&mut stream, flags, user_information);
     //thread spawn leer del servidor
     let mut read_stream = stream.try_clone().unwrap();
@@ -88,12 +83,13 @@ fn client_run(
                 Ok(_) => {
                     let package_type = num_buffer[0].into();
                     let buff_size = remaining_length_read(&mut read_stream).unwrap();
-                    read_package(
+                    read_packet(
                         &mut read_stream,
                         package_type,
                         buff_size,
                         puback_sender.clone(),
                         message_sender.clone(),
+                        connack_sender.clone(),
                     )
                     .unwrap();
                 }

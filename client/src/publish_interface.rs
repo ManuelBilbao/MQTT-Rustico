@@ -20,13 +20,15 @@ pub fn build_publish_ui(
     let message_entry: gtk::Entry = connect_builder.object("message_entry").unwrap();
     let topic_entry: gtk::Entry = connect_builder.object("topic_entry").unwrap();
     let publish_button: gtk::Button = connect_builder.object("publish_button").unwrap();
+    let qos_publish_switch: gtk::Switch = connect_builder.object("QOS_publish_switch").unwrap();
+    let retained_check: gtk::ToggleButton = connect_builder.object("retained_check").unwrap();
     let stream_clone = stream.try_clone().expect("Cannot clone stream");
 
-    publish_button.connect_clicked(clone!(@weak message_entry, @weak topic_entry => move |_|{
+    publish_button.connect_clicked(clone!(@weak message_entry, @weak topic_entry, @weak qos_publish_switch, @weak retained_check => move |_|{
         let message = message_entry.text();
         let topic = topic_entry.text();
         let mut stream_clone2 = stream_clone.try_clone().expect("Cannot clone stream");
-        _send_publish_packet(&mut stream_clone2, topic.to_string(), message.to_string(), false);
+        _send_publish_packet(&mut stream_clone2, topic.to_string(), message.to_string(), false, qos_publish_switch.is_active(), retained_check.is_active());
         message_entry.set_properties(&[("text", &"".to_owned())]).unwrap();
         topic_entry.set_properties(&[("text", &"".to_owned())]).unwrap();
     }));
@@ -45,7 +47,7 @@ impl ReceiverWindow {
 
         glib_receiver.attach(None, move |text: String| {
             let text_;
-            if text != "Publish sent successfully\n" {
+            if text != "Publish sent successfully\n" && text != "Connected successfully\n" {
                 text_ = label.text().to_string() + "\n" + &text;
             } else {
                 text_ = text;
