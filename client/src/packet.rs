@@ -90,15 +90,10 @@ pub fn read_package(
 pub fn read_connack(buffer: Vec<u8>) {
     let session_present = buffer[0];
     let return_code = buffer[1];
-    println!(
-        "Recibe connack con sp: {} y return code {}",
-        session_present, return_code
-    );
 }
 
 pub fn read_puback(buffer: Vec<u8>, puback_sender: Sender<String>) {
     let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
-    println!("Recibido PubAck. Packet Identifier: {}.", packet_identifier);
     puback_sender
         .send("Publish sent successfully\n".to_string())
         .expect("Error al mandar texto al gui");
@@ -106,16 +101,11 @@ pub fn read_puback(buffer: Vec<u8>, puback_sender: Sender<String>) {
 
 pub fn read_suback(buffer: Vec<u8>) {
     let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
-    println!("Recibido SubAck. Packet Identifier: {}.", packet_identifier);
-
     let amount_of_topics = buffer.len() - 2;
     let mut topic_results: Vec<u8> = Vec::new();
-    print!("Resultados: ");
     for i in 0..amount_of_topics {
-        print!("{}, ", &buffer[i + 2]);
         topic_results.push(buffer[i + 2]);
     }
-    println!();
 }
 
 pub fn read_unsuback(buffer: Vec<u8>) {
@@ -131,15 +121,12 @@ pub fn read_pingresp() {
     // TODO: Do something
 }
 pub fn read_publish(buffer: Vec<u8>, stream: &mut TcpStream, message_sender: Sender<String>) {
-    println!("Recibí un mensaje");
     let topic_name_len: usize = ((buffer[0] as usize) << 8) + buffer[1] as usize;
     match bytes2string(&buffer[2..(2 + topic_name_len)]) {
         Ok(mut topic_name) => {
-            println!("Topico del mensaje: {}", topic_name);
             topic_name += "-";
             match bytes2string(&buffer[(4 + topic_name_len)..buffer.len()]) {
                 Ok(mut message) => {
-                    println!("Mensaje: {}", message);
                     message += "\n";
                     let topic_and_message = topic_name + &message;
                     message_sender
@@ -231,6 +218,7 @@ pub fn send_packet_connection(
             buffer.push(*byte);
         }
     }
+
     stream.write_all(&buffer).unwrap();
 }
 
@@ -301,7 +289,6 @@ pub fn send_puback_packet(stream: &mut TcpStream, packet_identifier: [u8; 2]) {
     buffer[2] = packet_identifier[0];
     buffer[3] = packet_identifier[1];
 
-    println!("envié puback");
     stream.write_all(&buffer).unwrap();
 }
 

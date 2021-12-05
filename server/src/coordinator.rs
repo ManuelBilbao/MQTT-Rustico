@@ -1,5 +1,5 @@
-use crate::client::Client;
-use crate::packet::{bytes2string, Packet};
+use crate::client::{Client, Subscription};
+use crate::packet::{bytes2string, Packet, SUCCESSFUL_CONNECTION};
 use crate::server::PacketThings;
 use crate::utils::remaining_length_encode;
 use crate::wildcard::compare_topic;
@@ -21,66 +21,62 @@ pub fn run_coordinator(
     info!("Se lanza el thread-coordinator");
     loop {
         match coordinator_receiver.recv() {
-            Ok(mut packet) => {
-                match packet.packet_type {
-                    Packet::Connect => process_client_id_and_info(&lock_clients, &mut packet),
-                    Packet::Subscribe => {
-                        info!("Se recibio un paquete Subscribe.");
-                        let vector_with_qos = process_subscribe(&lock_clients, &packet);
-                        send_subback(&lock_clients, &packet, vector_with_qos);
-                        send_retained_messages(&lock_clients, &packet, &mut retained_messages)
+            Ok(mut packet) => match packet.packet_type {
+                Packet::Connect => {
+                    process_client_id_and_info(&lock_clients, &mut packet, &retained_messages)
+                }
+                Packet::Subscribe => {
+                    info!("Se recibio un paquete Subscribe.");
+                    let vector_with_qos = process_subscribe(&lock_clients, &packet);
+                    send_subback(&lock_clients, &packet, vector_with_qos);
+                    send_retained_messages(&lock_clients, &packet, &mut retained_messages)
+                }
+                Packet::Unsubscribe => {
+                    info!("Se recibio un paquete Unsubscribe.");
+                    unsubscribe_process(&lock_clients, &packet);
+                    send_unsubback(&lock_clients, packet)
+                }
+                Packet::Publish => {
+                    let topic_name = process_publish(&mut packet);
+                    if topic_name.is_empty() {
+                        continue;
                     }
-                    Packet::Unsubscribe => {
-                        info!("Se recibio un paquete Unsubscribe.");
-                        unsubscribe_process(&lock_clients, &packet);
-                        send_unsubback(&lock_clients, packet)
-                    }
-                    Packet::Publish => {
-                        let topic_name = process_publish(&mut packet);
-                        if topic_name.is_empty() {
-                            continue;
-                        }
-                        if is_to_retained(&packet) {
-                            let publish_packet =
-                                send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
-                            let new_retained = RetainedMessage {
-                                topic: topic_name,
-                                message: publish_packet,
-                            };
-                            retained_messages.push(new_retained);
-                        } else {
+                    if is_to_retained(&packet) {
+                        let publish_packet =
                             send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
-                        }
-                    }
-                    Packet::PubAck => {
-                        remove_publishes(&lock_clients, &mut packet);
-                    }
-                    Packet::Disconnect => {
-                        info!("Se recibio un paquete Disconnect.");
-                        close_process(&lock_clients, &packet);
-                    }
-                    Packet::Disgrace => {
-                        info!("Se recibio un paquete desconexión disgraceful.");
-                        close_disgraceful(&lock_clients, &packet);
-                        let (publish_packet, topic_name, publish_message) =
-                            send_lastwill(&lock_clients, &packet);
-                        if !publish_packet.is_empty() {
-                            let new_retained = RetainedMessage {
-                                topic: topic_name,
-                                message: publish_message.as_bytes().to_vec(),
-                            };
-                            retained_messages.push(new_retained);
-                        }
-                    }
-                    _ => {
-                        debug!("Se recibio un paquete desconocido.")
+                        let new_retained = RetainedMessage {
+                            topic: topic_name,
+                            message: publish_packet,
+                        };
+                        retained_messages.push(new_retained);
+                    } else {
+                        send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
                     }
                 }
-                if lock_clients.lock().unwrap().is_empty() {
-                    println!("Esta vacio, no lo ves?.");
-                    debug!("No hay clientes.");
+                Packet::PubAck => {
+                    remove_publishes(&lock_clients, &mut packet);
                 }
-            }
+                Packet::Disconnect => {
+                    info!("Se recibio un paquete Disconnect.");
+                    close_process(&lock_clients, &packet);
+                }
+                Packet::Disgrace => {
+                    info!("Se recibio un paquete desconexión disgraceful.");
+                    close_disgraceful(&lock_clients, &packet);
+                    let (publish_packet, topic_name, publish_message) =
+                        send_lastwill(&lock_clients, &packet);
+                    if !publish_packet.is_empty() {
+                        let new_retained = RetainedMessage {
+                            topic: topic_name,
+                            message: publish_message.as_bytes().to_vec(),
+                        };
+                        retained_messages.push(new_retained);
+                    }
+                }
+                _ => {
+                    debug!("Se recibio un paquete desconocido.")
+                }
+            },
             Err(_e) => {}
         }
     }
@@ -121,7 +117,7 @@ fn send_lastwill(
                                     match client.1.channel.send(buffer_to_send) {
                                         Ok(_) => {
                                             info!("Publish enviado al cliente");
-                                            if client.1.clean_session == 1 {
+                                            if client.1.is_subscribed_to_qos1(&topic_name) {
                                                 client.1.publishes_received.push(buffer_clone);
                                             }
                                         }
@@ -148,24 +144,21 @@ fn send_lastwill(
 
 fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
     match lock_clients.lock() {
-        Ok(mut locked) => {
-            match locked.get_mut(&packet.thread_id) {
-                Some(client) => {
-                    let close: Vec<u8> = vec![255_u8];
-                    match client.channel.send(close) {
-                        Ok(_) => {}
-                        Err(_) => {
-                            warn!("error al mandar mensaje")
-                        }
+        Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
+            Some(client) => {
+                let close: Vec<u8> = vec![255_u8];
+                match client.channel.send(close) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        warn!("error al mandar mensaje")
                     }
-                    locked.remove(&packet.thread_id);
                 }
-                None => {
-                    debug!("Error al buscar cliente para desconectar")
-                }
+                client.disconnected = true;
             }
-            println!("{}", locked.len());
-        }
+            None => {
+                debug!("Error al buscar cliente para desconectar")
+            }
+        },
         Err(_) => {
             warn!("Imposible acceder al lock desde el coordinador")
         }
@@ -229,12 +222,13 @@ fn is_to_retained(packet: &PacketThings) -> bool {
 fn process_client_id_and_info(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &mut PacketThings,
+    retained_msg: &[RetainedMessage],
 ) {
     match lock_clients.lock() {
         Ok(mut locked) => {
             let mut already_exists = false;
             let size = packet.bytes[0] as usize;
-            let new_client_id = bytes2string(&packet.bytes[1..(size + 1) as usize]).unwrap();
+            let new_client_id = bytes2string(&packet.bytes[1..(size + 1) as usize]);
             let clean_session = packet.bytes[(size + 1) as usize];
             let mut will_topic = None;
             let mut will_message = None;
@@ -243,34 +237,30 @@ fn process_client_id_and_info(
             if packet.bytes[(size + 2) as usize] == 1 {
                 let mut index = (size + 3) as usize;
                 let topic_size = packet.bytes[index] as usize;
-                will_topic = Some(
-                    bytes2string(
-                        &packet.bytes[(index + 1) as usize..(index + 1 + topic_size) as usize],
-                    )
-                    .unwrap(),
-                );
+                will_topic = Some(bytes2string(
+                    &packet.bytes[(index + 1) as usize..(index + 1 + topic_size) as usize],
+                ));
                 index = (index + 1 + topic_size) as usize;
                 let message_size = packet.bytes[(index) as usize] as usize;
-                will_message = Some(
-                    bytes2string(
-                        &packet.bytes[(index + 1) as usize..(index + 1 + message_size) as usize],
-                    )
-                    .unwrap(),
-                );
+                will_message = Some(bytes2string(
+                    &packet.bytes[(index + 1) as usize..(index + 1 + message_size) as usize],
+                ));
                 will_qos = packet.bytes[(index + 1 + message_size) as usize];
                 if packet.bytes[(index + 2 + message_size) as usize] == 1 {
                     will_retained = true;
                 }
             }
-            let mut subscriptions: Vec<String> = Vec::new();
+            let mut subscriptions: Vec<Subscription> = Vec::new();
             let mut publishes_received: Vec<Vec<u8>> = Vec::new();
             let mut old_thread_id = 0;
+            let mut clean_session_old = 0;
             for client in locked.iter_mut() {
                 if client.1.client_id == new_client_id {
                     already_exists = true;
                     subscriptions.append(&mut client.1.topics);
                     publishes_received.append(&mut client.1.publishes_received);
                     old_thread_id = client.1.thread_id;
+                    clean_session_old = client.1.clean_session;
                 }
             }
             if already_exists {
@@ -280,16 +270,32 @@ fn process_client_id_and_info(
             match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
                     client.client_id = new_client_id;
-                    client.clean_session = clean_session;
                     if already_exists {
-                        send_stacked_messages(client, publishes_received);
+                        if clean_session_old == 0 {
+                            client.publishes_received.append(&mut publishes_received);
+                        }
                         client.topics.append(&mut subscriptions);
+                        for topic in client.topics.iter() {
+                            for topic_retained in retained_msg.iter() {
+                                if compare_topic(&topic_retained.topic, &(topic.topic)) {
+                                    client
+                                        .publishes_received
+                                        .push(topic_retained.message.clone());
+                                }
+                            }
+                        }
                     }
                     client.lastwill_topic = will_topic;
                     client.lastwill_message = will_message;
                     client.lastwill_qos = will_qos;
                     client.lastwill_retained = will_retained;
                     client.disconnected = false;
+                    client.clean_session = clean_session;
+                    if already_exists {
+                        send_connection_result(client, SUCCESSFUL_CONNECTION, 1);
+                    } else {
+                        send_connection_result(client, SUCCESSFUL_CONNECTION, 0);
+                    }
                 }
                 None => {
                     debug!("cliente no encontrado en hashmap")
@@ -301,15 +307,18 @@ fn process_client_id_and_info(
         }
     }
 }
-fn send_stacked_messages(client: &mut Client, publishes_received: Vec<Vec<u8>>) {
-    for publish in publishes_received.iter() {
-        match client.channel.send(publish.to_vec()) {
-            Ok(_) => {}
-            Err(_) => {
-                warn!("error al mandar mensaje encolado")
-            }
+
+fn send_connection_result(client: &mut Client, result_code: u8, session: u8) {
+    let buffer = vec![Packet::ConnAck.into(), 0x02, session, result_code];
+
+    match client.channel.send(buffer) {
+        Ok(_) => {
+            info!("Envié el connack exitoso al client sender");
         }
-    }
+        Err(_) => {
+            error!("No pude enviar connack al client sender");
+        }
+    };
 }
 
 fn send_publish_to_customer(
@@ -317,8 +326,11 @@ fn send_publish_to_customer(
     packet: &mut PacketThings,
     topic_name: &str,
 ) -> Vec<u8> {
+    let publish_qos = packet.bytes[0] & 0x02;
     packet.bytes.remove(0);
-    let mut buffer_packet: Vec<u8> = vec![Packet::Publish.into()];
+    let byte_publish: u8 = Packet::Publish.into();
+    let byte_0: u8 = byte_publish | publish_qos;
+    let mut buffer_packet: Vec<u8> = vec![byte_0];
     let mut remaining_length = remaining_length_encode(packet.bytes.len());
     buffer_packet.append(&mut remaining_length);
     buffer_packet.extend(&packet.bytes);
@@ -329,13 +341,17 @@ fn send_publish_to_customer(
                     let mut buffer_to_send: Vec<u8> = Vec::new();
                     buffer_to_send.extend(&buffer_packet);
                     let buffer_clone = buffer_to_send.clone();
-                    match client.1.channel.send(buffer_to_send) {
-                        Ok(_) => {
-                            info!("Publish enviado al cliente");
-                            client.1.publishes_received.push(buffer_clone);
-                        }
-                        Err(_) => {
-                            debug!("Error al enviar Publish al cliente")
+                    if publish_qos == 2 && client.1.is_subscribed_to_qos1(topic_name) {
+                        client.1.publishes_received.push(buffer_clone);
+                    }
+                    if !client.1.disconnected {
+                        match client.1.channel.send(buffer_to_send) {
+                            Ok(_) => {
+                                info!("Publish enviado al cliente");
+                            }
+                            Err(_) => {
+                                debug!("Error al enviar Publish al cliente")
+                            }
                         }
                     }
                 }
@@ -349,28 +365,12 @@ fn send_publish_to_customer(
 }
 
 fn process_publish(packet: &mut PacketThings) -> String {
-    let _byte_0 = packet.bytes[0]; //TODO qos
     let size = packet.bytes.len();
     let topic_name_len: usize = ((packet.bytes[1] as usize) << 8) + packet.bytes[2] as usize;
-    let mut topic_name = String::from("");
-    match bytes2string(&packet.bytes[3..(3 + topic_name_len)]) {
-        Ok(value) => {
-            topic_name = value;
-        }
-        Err(_) => {
-            error!("Error procesando topico");
-        }
-    }
+    let topic_name = bytes2string(&packet.bytes[3..(3 + topic_name_len)]);
     let mut _topic_desc = String::from(""); //INICIO RETAINED
     if size > 3 + topic_name_len {
-        match bytes2string(&packet.bytes[(5 + topic_name_len)..(size)]) {
-            Ok(value) => {
-                _topic_desc = value;
-            }
-            Err(_) => {
-                error!("Error leyendo contenido del publish")
-            }
-        }
+        _topic_desc = bytes2string(&packet.bytes[(5 + topic_name_len)..(size)]);
     }
     topic_name
 }
@@ -408,12 +408,12 @@ fn unsubscribe_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet
         let topic_size: usize =
             ((packet.bytes[index] as usize) << 8) + packet.bytes[index + 1] as usize;
         index += 2;
-        let topico = bytes2string(&packet.bytes[index..(index + topic_size)]).unwrap(); //TODO Cambiar el unwrap
+        let topic = bytes2string(&packet.bytes[index..(index + topic_size)]);
         index += topic_size;
         match lock_clients.lock() {
             Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
-                    client.unsubscribe(topico);
+                    client.unsubscribe(topic);
                     info!("El cliente se desuscribio del topico.")
                 }
                 None => {
@@ -470,19 +470,19 @@ fn process_subscribe(
         let topic_size: usize =
             ((packet.bytes[index] as usize) << 8) + packet.bytes[index + 1] as usize;
         index += 2;
-        let topic = bytes2string(&packet.bytes[index..(index + topic_size)]).unwrap();
+        let topic = bytes2string(&packet.bytes[index..(index + topic_size)]);
         index += topic_size;
         let qos: u8 = &packet.bytes[index] & 0x01;
         index += 1;
         match lock_clients.lock() {
             Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
-                    client.subscribe(topic.clone());
+                    client.subscribe(topic.clone(), qos);
                     vector_with_qos.push(qos);
                     info!("El cliente se subscribio al topico")
                 }
                 None => {
-                    println!("Cliente no encontrado en hashmap")
+                    error!("Cliente no encontrado en hashmap")
                 }
             },
             Err(_) => vector_with_qos.push(0x80),
@@ -501,7 +501,7 @@ fn send_retained_messages(
         let topic_size: usize =
             ((packet.bytes[index] as usize) << 8) + packet.bytes[index + 1] as usize;
         index += 2;
-        let topic = bytes2string(&packet.bytes[index..(index + topic_size)]).unwrap();
+        let topic = bytes2string(&packet.bytes[index..(index + topic_size)]);
         index += topic_size + 1;
         match lock_clients.lock() {
             Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
@@ -512,21 +512,21 @@ fn send_retained_messages(
                             buffer_to_send.extend(&topic_retained.message);
                             match client.channel.send(buffer_to_send) {
                                 Ok(_) => {
-                                    println!("Publish enviado al cliente")
+                                    info!("Publish enviado al cliente")
                                 }
                                 Err(_) => {
-                                    println!("Error al enviar Publish al cliente")
+                                    error!("Error al enviar Publish al cliente")
                                 }
                             }
                         }
                     }
                 }
                 None => {
-                    println!("Cliente no encontrado en hashmap")
+                    error!("Cliente no encontrado en hashmap")
                 }
             },
             Err(_) => {
-                println!("Imposible acceder al lock")
+                error!("Imposible acceder al lock")
             }
         }
     }
@@ -632,8 +632,8 @@ mod tests {
             lastwill_retained: false,
             disconnected: false,
         };
-        client_1.subscribe("as/tillero".to_owned());
-        client_1.subscribe("ma/derero".to_owned());
+        client_1.subscribe("as/tillero".to_owned(), 1);
+        client_1.subscribe("ma/derero".to_owned(), 1);
         let client_2 = Client {
             thread_id: 2,
             client_id: "".to_owned(),

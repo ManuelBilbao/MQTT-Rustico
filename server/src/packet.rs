@@ -10,7 +10,7 @@ const CONNECTION_USER_OR_PASS_REFUSED: u8 = 4;
 const CONNECTION_IDENTIFIER_REFUSED: u8 = 2;
 const CONNECTION_PROTOCOL_REJECTED: u8 = 1;
 const INCORRECT_SERVER_CONNECTION: u8 = 1;
-const SUCCESSFUL_CONNECTION: u8 = 0;
+pub const SUCCESSFUL_CONNECTION: u8 = 0;
 
 pub enum Packet {
     Connect,
@@ -83,11 +83,9 @@ pub fn read_packet(
         Packet::Connect => {
             info!("Connect package received");
             match make_connection(client, buffer_packet) {
-                Ok(session_present) => {
-                    send_connection_result(client, SUCCESSFUL_CONNECTION, session_present);
-                }
+                Ok(_) => {}
                 Err(error_code) => {
-                    send_connection_result(client, error_code, 0);
+                    send_connection_error(client, error_code);
                 }
             }
         }
@@ -173,7 +171,14 @@ fn close_streams(client: &mut ClientFlags) {
             info!("Cerre el stream con el cliente");
         }
     }
-    drop(client.sender.lock().unwrap());
+    match client.sender.lock() {
+        Ok(locked) => {
+            drop(locked);
+        }
+        Err(_) => {
+            error!("Error al acceder al lock");
+        }
+    }
     info!("Cerre el stream con el coordinator!");
 }
 
@@ -277,16 +282,23 @@ pub fn verify_version_protocol(level: &u8) -> Result<(), u8> {
     Err(CONNECTION_PROTOCOL_REJECTED)
 }
 
-fn send_connection_result(client: &mut ClientFlags, result_code: u8, session_present: u8) {
+pub fn send_connection_error(client: &mut ClientFlags, result_code: u8) {
     let mut buffer = [0u8; 4];
     buffer[0] = Packet::ConnAck.into();
     buffer[1] = 0x02;
-    buffer[2] = session_present;
+    buffer[2] = 0;
     buffer[3] = result_code;
 
-    client.connection.write_all(&buffer).unwrap();
-    info!("Envié el connac");
+    match client.connection.write_all(&buffer) {
+        Ok(_) => {
+            info!("Envié el connack con un error");
+        }
+        Err(_) => {
+            error!("Error al comunicarse con el cliente");
+        }
+    }
 }
+
 fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]) {
     let mut buffer = [0u8; 4];
     buffer[0] = Packet::PubAck.into();
@@ -294,8 +306,14 @@ fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]
     buffer[2] = packet_identifier[0];
     buffer[3] = packet_identifier[1];
 
-    client.connection.write_all(&buffer).unwrap();
-    info!("Envié el puback");
+    match client.connection.write_all(&buffer) {
+        Ok(_) => {
+            info!("Envié el pubback");
+        }
+        Err(_) => {
+            error!("Error al enviar pubback");
+        }
+    }
 }
 
 fn make_publication(
@@ -331,16 +349,27 @@ fn remove_from_client_publishes(client: &mut ClientFlags, buffer_packet: Vec<u8>
     };
     let sender = client.sender.lock();
     match sender {
-        Ok(sender_ok) => sender_ok.send(packet_to_server).unwrap(),
-        Err(_) => println!("error"),
+        Ok(sender_ok) => match sender_ok.send(packet_to_server) {
+            Ok(_) => {}
+            Err(_) => {
+                error!("Error al enviar un mensaje al client")
+            }
+        },
+        Err(_) => error!("Error al enviar un mensaje al client"),
     }
 }
 
 fn send_pingresp(client: &mut ClientFlags) {
     let buffer = [Packet::PingResp.into(), 0];
 
-    client.connection.write_all(&buffer).unwrap();
-    info!("Enviado PingResp");
+    match client.connection.write_all(&buffer) {
+        Ok(_) => {
+            info!("Enviado PingResp");
+        }
+        Err(_) => {
+            error!("Error al enviar pingresp");
+        }
+    }
 }
 
 pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Result<u8, u8> {
@@ -361,7 +390,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
     let mut client_id = None;
 
     if size_client_id != 0 {
-        client_id = Some(bytes2string(&buffer_packet[12..12 + size_client_id])?);
+        client_id = Some(bytes2string(&buffer_packet[12..12 + size_client_id]));
         // En UTF-8
     }
 
@@ -376,7 +405,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
         index += 2_usize;
         will_topic = Some(bytes2string(
             &buffer_packet[index..(index + size_will_topic)],
-        )?);
+        ));
         index += size_will_topic;
 
         let size_will_message: usize =
@@ -384,7 +413,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
         index += 2_usize;
         will_message = Some(bytes2string(
             &buffer_packet[index..(index + size_will_message)],
-        )?);
+        ));
         index += size_will_message;
     }
 
@@ -393,9 +422,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
         let size_username: usize =
             ((buffer_packet[index] as usize) << 8) + buffer_packet[(index + 1) as usize] as usize;
         index += 2_usize;
-        username = Some(bytes2string(
-            &buffer_packet[index..(index + size_username)],
-        )?);
+        username = Some(bytes2string(&buffer_packet[index..(index + size_username)]));
         index += size_username;
     }
 
@@ -404,9 +431,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
         let size_password: usize =
             ((buffer_packet[index] as usize) << 8) + buffer_packet[(index + 1) as usize] as usize;
         index += 2_usize;
-        password = Some(bytes2string(
-            &buffer_packet[index..(index + size_password)],
-        )?);
+        password = Some(bytes2string(&buffer_packet[index..(index + size_password)]));
     }
 
     if let Some(user) = &username {
@@ -452,10 +477,10 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
     Ok(1) // TODO: Persistent Sessions
 }
 
-pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
+pub fn bytes2string(bytes: &[u8]) -> String {
     match std::str::from_utf8(bytes) {
-        Ok(str) => Ok(str.to_owned()),
-        Err(_) => Err(INCORRECT_SERVER_CONNECTION),
+        Ok(str) => str.to_owned(),
+        Err(_) => "".to_owned(),
     }
 }
 

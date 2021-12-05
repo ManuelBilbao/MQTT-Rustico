@@ -48,16 +48,6 @@ pub struct UserInformation {
 }
 
 fn main() -> Result<(), ()> {
-    /*let argv = args().collect::<Vec<String>>();
-    if argv.len() != CLIENT_ARGS {
-        println!("Invalid number of arguments");
-        let app_name = &argv[0];
-        println!("{:?} <host> <port>", app_name);
-        return Err(());
-    }
-    let address = argv[1].clone() + ":" + &argv[2];
-    println!("Connecting to... {:?}", address);
-    client_run(&address).unwrap();*/
     run_connection_window();
     Ok(())
 }
@@ -68,12 +58,7 @@ fn client_run(
     puback_sender: Sender<String>,
     message_sender: Sender<String>,
 ) -> std::io::Result<()> {
-    /*let mut stream = TcpStream::connect(address)?;*/
     let keep_alive: u16 = 100;
-    /*let frase = "Hola quiero conectarme".to_string();
-    let size_be = (frase.len() as u32).to_be_bytes();
-    socket.write(&size_be)?;
-    socket.write(&frase.as_bytes())?;*/
     let flags = FlagsConexion {
         username: true,
         password: true,
@@ -81,20 +66,6 @@ fn client_run(
         will_flag: false,
         clean_session: false,
     };
-    /*let user_information = UserInformation {
-        id_length: 1,
-        id: "2".to_owned(),
-        username_length: 6,
-        username: Some("franco".to_owned()),
-        password_length: 6,
-        password: Some("123pop".to_owned()),
-        will_topic_length: 0,
-        will_topic: None,
-        will_message_length: 0,
-        will_message: None,
-        will_qos: 1,
-        keep_alive,
-    };*/
     send_packet_connection(&mut stream, flags, user_information);
     //thread spawn leer del servidor
     let mut read_stream = stream.try_clone().unwrap();
@@ -111,7 +82,6 @@ fn client_run(
             let mut num_buffer = [0u8; 1]; //Recibimos 2 bytes
             if signal_clone.load(Ordering::Relaxed) {
                 //Cerre el stream
-                println!("Ya se cerro el stream!");
                 exit(0);
             }
             match read_stream.read_exact(&mut num_buffer) {
@@ -137,12 +107,6 @@ fn client_run(
     disconnect(&mut stream, signal);
     //ENVIA COSAS al sv
     a.join().unwrap();
-    /*
-    let mut num_buffer = [0u8; 4];
-    socket.read_exact(&mut num_buffer).unwrap();
-    let size = u32::from_be_bytes(num_buffer);
-    let mut nombre_buf = vec![0; size as usize];
-    socket.read_exact(&mut nombre_buf).unwrap();*/
     Ok(())
 }
 
@@ -190,7 +154,6 @@ fn disconnect(stream: &mut TcpStream, signal: Arc<AtomicBool>) {
         .shutdown(Shutdown::Both)
         .expect("shutdown call failed");
     signal.store(true, Ordering::Relaxed);
-    println!("Me desconecte con exito!");
     exit(0);
 }
 

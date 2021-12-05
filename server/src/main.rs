@@ -8,6 +8,7 @@ mod configuration;
 mod coordinator;
 mod packet;
 mod server;
+mod stacked_messages;
 mod utils;
 mod wildcard;
 
@@ -356,24 +357,10 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        match bytes2string(&buffer_paquete[2..(2 + topic_name_len)]) {
-                            Ok(topic_name) => {
-                                assert_eq!(topic_name, "as/ti/lle/ro");
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el nombre del tópico en el test 5");
-                            }
-                        }
-                        match bytes2string(
+                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/ti/lle/ro");
+                        assert_eq!(bytes2string(
                             &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ) {
-                            Ok(message) => {
-                                assert_eq!(message, "piniata");
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el body del tópico en el test 5");
-                            }
-                        }
+                        ), "piniata");
                         can_go_on = true;
                         first_pubback = false;
                     }
@@ -393,24 +380,10 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        match bytes2string(&buffer_paquete[2..(2 + topic_name_len)]) {
-                            Ok(topic_name) => {
-                                assert_eq!(topic_name, "as/ti/lle/ro");
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el nombre del tópico en el test 5");
-                            }
-                        }
-                        match bytes2string(
+                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/ti/lle/ro");
+                        assert_eq!(bytes2string(
                             &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ) {
-                            Ok(message) => {
-                                assert_eq!(message, "piniata");
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el body del tópico en el test 5");
-                            }
-                        }
+                        ), "piniata");
                         can_go_on = true;
                     } else {
                         assert_eq!(package_type, 0x40);
@@ -740,23 +713,8 @@ mod tests {
                     let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                     stream.read_exact(&mut buffer_paquete).unwrap();
                     let topic_name_len: usize = buffer_paquete[1] as usize;
-                    match bytes2string(&buffer_paquete[2..(2 + topic_name_len)]) {
-                        Ok(topic_name) => {
-                            assert_eq!(topic_name, "as/tio/lle/ro");
-                        }
-                        Err(_) => {
-                            panic!("Error leyendo el nombre del tópico en el test 5");
-                        }
-                    }
-                    match bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()])
-                    {
-                        Ok(message) => {
-                            assert_eq!(message, "piniata");
-                        }
-                        Err(_) => {
-                            panic!("Error leyendo el body del tópico en el test 5");
-                        }
-                    }
+                    assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/tio/lle/ro");
+                    assert_eq!(bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()]), "piniata");
                     can_go_on = true;
                 }
                 Err(_) => {}
@@ -999,23 +957,8 @@ mod tests {
                     let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                     stream.read_exact(&mut buffer_paquete).unwrap();
                     let topic_name_len: usize = buffer_paquete[1] as usize;
-                    match bytes2string(&buffer_paquete[2..(2 + topic_name_len)]) {
-                        Ok(topic_name) => {
-                            assert_eq!(topic_name, "as");
-                        }
-                        Err(_) => {
-                            panic!("Error leyendo el nombre del tópico en el test 9");
-                        }
-                    }
-                    match bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()])
-                    {
-                        Ok(message) => {
-                            assert_eq!(message, "pepe");
-                        }
-                        Err(_) => {
-                            panic!("Error leyendo el body del tópico en el test 9");
-                        }
-                    }
+                    assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as");
+                    assert_eq!(bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()]), "pepe");
                     can_go_on = true;
                 }
                 Err(_) => {}
@@ -1192,24 +1135,10 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        match bytes2string(&buffer_paquete[2..(2 + topic_name_len)]) {
-                            Ok(topic_name) => {
-                                assert_eq!(topic_name, "as/ti/lle/ro");
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el nombre del tópico en el test 5");
-                            }
-                        }
-                        match bytes2string(
+                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/ti/lle/ro");
+                        assert_eq!(bytes2string(
                             &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ) {
-                            Ok(message) => {
-                                assert_eq!(message, "piniata");
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el body del tópico en el test 5");
-                            }
-                        }
+                        ), body);
                         can_go_on = true;
                         first_pubback = false;
                     }
@@ -1230,24 +1159,10 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; buff_size as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        match bytes2string(&buffer_paquete[2..(2 + topic_name_len)]) {
-                            Ok(topic_name) => {
-                                assert_eq!(topic_name, topic_publish);
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el nombre del tópico en el test 5");
-                            }
-                        }
-                        match bytes2string(
+                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
+                        assert_eq!(bytes2string(
                             &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ) {
-                            Ok(message) => {
-                                assert_eq!(message, body);
-                            }
-                            Err(_) => {
-                                panic!("Error leyendo el body del tópico en el test 5");
-                            }
-                        }
+                        ), body);
                         can_go_on = true;
                     } else {
                         assert_eq!(package_type, 0x40);
@@ -1256,6 +1171,181 @@ mod tests {
                         assert_eq!(14, buffer_paquete[1]);
                         can_go_on = true;
                     }
+                }
+                Err(_) => {}
+            }
+        }
+    }
+
+    #[test]
+    fn test_11_como_el_cliente_no_envia_su_pubback_vuelve_a_recibir_el_mensaje() {
+        //Arrange
+        thread::spawn(move || {
+            let server = Server::new("src/testingConfigs/cfgj.txt");
+            server.run().unwrap();
+        });
+        thread::sleep(time::Duration::from_millis(20)); //Wait for server to start
+        let mut stream = TcpStream::connect("127.0.0.1:1893").unwrap();
+        let mut buffer: Vec<u8> = Vec::with_capacity(16);
+        buffer.push(0x10); //Connect packet
+        buffer.push(14); //Hardcoded length
+        buffer.push(0);
+        buffer.push(4);
+        buffer.push(77); // M
+        buffer.push(81); // Q
+        buffer.push(84); // T
+        buffer.push(84); // T
+        buffer.push(4); // Protocol Level
+        buffer.push(0); // Connect flags
+        buffer.push(0);
+        buffer.push(200);
+        buffer.push(0);
+        buffer.push(2);
+        let client_id = "23".to_owned();
+        let client_id_bytes = client_id.as_bytes();
+        for byte in client_id_bytes.iter() {
+            buffer.push(*byte);
+        }
+        stream.write_all(&buffer).unwrap();
+        let mut can_go_on = false;
+        //Assert connect exitoso
+        while !can_go_on {
+            let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
+            match stream.read_exact(&mut num_buffer) {
+                Ok(_) => {
+                    let package_type = num_buffer[0];
+                    assert_eq!(package_type, 0x20);
+                    let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
+                    stream.read_exact(&mut buffer_paquete).unwrap();
+                    let return_code = buffer_paquete[1];
+                    assert_eq!(return_code, 0);
+                    can_go_on = true;
+                }
+                Err(_) => {}
+            }
+        }
+        //Arrange subscribe packet
+        let mut buffer_subscribe: Vec<u8> = Vec::new();
+        let topic_subscribed = "as/ti/#".to_owned();
+        let mut topic_subscribed_bytes: Vec<u8> = topic_subscribed.as_bytes().to_vec();
+        buffer_subscribe.push(0x80); //Subscribe code
+        buffer_subscribe.push((5 + topic_subscribed_bytes.len()) as u8);
+        buffer_subscribe.push(0);
+        buffer_subscribe.push(57);
+        buffer_subscribe.push(0);
+        buffer_subscribe.push(topic_subscribed_bytes.len() as u8);
+        buffer_subscribe.append(&mut topic_subscribed_bytes);
+        buffer_subscribe.push(1);
+        stream.write_all(&buffer_subscribe).unwrap();
+        //Assert subscribe exitoso
+        can_go_on = false;
+        while !can_go_on {
+            let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
+            match stream.read_exact(&mut num_buffer) {
+                Ok(_) => {
+                    let package_type = num_buffer[0];
+                    assert_eq!(package_type, 0x90);
+                    let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
+                    stream.read_exact(&mut buffer_paquete).unwrap();
+                    assert_eq!(57, buffer_paquete[1]);
+                    can_go_on = true;
+                }
+                Err(_) => {}
+            }
+        }
+        //Arrange publish
+        let mut buffer_publish: Vec<u8> = Vec::new();
+        let topic_publish = "as/ti/lle/ro".to_owned();
+        let topic_len: usize = topic_publish.as_bytes().to_vec().len();
+        let body = "hola".to_owned();
+        let body_len: usize = body.as_bytes().to_vec().len();
+        let mut remaining_length: Vec<u8> = remaining_length_encode(topic_len + body_len + 4);
+        buffer_publish.push(0x32); //Publish code
+        buffer_publish.append(&mut remaining_length);
+        buffer_publish.push(0);
+        buffer_publish.push(topic_len as u8);
+        buffer_publish.append(&mut topic_publish.as_bytes().to_vec());
+        buffer_publish.push(0);
+        buffer_publish.push(14); //Packet identifier
+        buffer_publish.append(&mut body.as_bytes().to_vec());
+        stream.write_all(&buffer_publish).unwrap();
+        //Assert pubAck
+        let mut first_pubback = true;
+        can_go_on = false;
+        while !can_go_on {
+            let mut num_buffer = [0u8; 2]; //Recibimos 2 bytes
+            match stream.read_exact(&mut num_buffer) {
+                Ok(_) => {
+                    let package_type = num_buffer[0];
+                    if package_type == 0x40 {
+                        assert_eq!(package_type, 0x40);
+                        let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
+                        stream.read_exact(&mut buffer_paquete).unwrap();
+                        assert_eq!(14, buffer_paquete[1]);
+                        can_go_on = true;
+                    } else {
+                        assert_eq!(package_type & 0xF0, 0x30);
+                        let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
+                        stream.read_exact(&mut buffer_paquete).unwrap();
+                        let topic_name_len: usize = buffer_paquete[1] as usize;
+                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
+                        assert_eq!(bytes2string(
+                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                        ), body);
+                        can_go_on = true;
+                        first_pubback = false;
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+        //Assert publish
+        can_go_on = false;
+        while !can_go_on {
+            let mut num_buffer = [0u8; 1]; //Recibimos 2 bytes
+            match stream.read_exact(&mut num_buffer) {
+                Ok(_) => {
+                    let package_type = num_buffer[0];
+                    let buff_size = remaining_length_read(&mut stream).unwrap();
+                    if first_pubback {
+                        assert_eq!(package_type & 0xF0, 0x30);
+                        let mut buffer_paquete: Vec<u8> = vec![0; buff_size as usize];
+                        stream.read_exact(&mut buffer_paquete).unwrap();
+                        let topic_name_len: usize = buffer_paquete[1] as usize;
+                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
+                        assert_eq!(bytes2string(
+                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                        ), body);
+                        can_go_on = true;
+                    } else {
+                        assert_eq!(package_type, 0x40);
+                        let mut buffer_paquete: Vec<u8> = vec![0; buff_size as usize];
+                        stream.read_exact(&mut buffer_paquete).unwrap();
+                        assert_eq!(14, buffer_paquete[1]);
+                        can_go_on = true;
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+        //Assert publish again
+
+        can_go_on = false;
+        while !can_go_on {
+            let mut num_buffer = [0u8; 1]; //Recibimos 2 bytes
+            match stream.read_exact(&mut num_buffer) {
+                Ok(_) => {
+                    let package_type = num_buffer[0];
+                    let buff_size = remaining_length_read(&mut stream).unwrap();
+                    assert_eq!(package_type & 0xF0, 0x30);
+                    let mut buffer_paquete: Vec<u8> = vec![0; buff_size as usize];
+                    stream.read_exact(&mut buffer_paquete).unwrap();
+                    let topic_name_len: usize = buffer_paquete[1] as usize;
+                    assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
+                    assert_eq!(bytes2string(
+                        &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                    ), body);
+                    can_go_on = true;
                 }
                 Err(_) => {}
             }

@@ -2,6 +2,7 @@ use crate::client::Client;
 use crate::configuration::Configuration;
 use crate::coordinator::run_coordinator;
 use crate::packet::{inform_client_disconnect_to_coordinator, read_packet, Packet};
+use crate::stacked_messages::run_stacked_coordinator;
 use crate::utils::remaining_length_read;
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -9,7 +10,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub struct Server {
     //
@@ -34,7 +35,7 @@ pub struct PacketThings {
 impl Server {
     pub fn new(file_path: &str) -> Self {
         let mut config = Configuration::new();
-        let _aux = config.set_config(file_path); //Manejar
+        config.set_config(file_path).unwrap(); // Si la configuracion es invalida, no puede arrancar el servidor, asi que paniqueo
         Server { cfg: config }
     }
 
@@ -47,12 +48,16 @@ impl Server {
         let clients: HashMap<usize, Client> = HashMap::new();
         let lock_clients = Arc::new(Mutex::new(clients));
         let handler_clients_locks = lock_clients.clone();
+        let lock_clients_stacked_messages = lock_clients.clone();
         let (clients_sender, coordinator_receiver): (Sender<PacketThings>, Receiver<PacketThings>) =
             mpsc::channel();
         let mutex_clients_sender = Arc::new(Mutex::new(clients_sender));
         thread::Builder::new()
             .name("Coordinator".into())
             .spawn(move || run_coordinator(coordinator_receiver, lock_clients))?;
+        thread::Builder::new()
+            .name("Stacked messages coordinator".into())
+            .spawn(move || run_stacked_coordinator(lock_clients_stacked_messages))?;
         Server::wait_new_clients(&address, handler_clients_locks, &mutex_clients_sender)
     }
 
@@ -71,14 +76,18 @@ impl Server {
             let client_sender_1 = Arc::clone(clients_sender);
             let client_sender_2 = Arc::clone(clients_sender);
             let client: Client = Client::new(index, coordinator_sender);
-            handler_clients_lock
-                .lock()
-                .unwrap()
-                .insert(client.thread_id, client);
-            thread::Builder::new()
+            match handler_clients_lock.lock() {
+                Ok(mut locked) => {
+                    locked.insert(client.thread_id, client);
+                }
+                Err(_) => {
+                    error!("Error al intentar agregar el nuevo cliente");
+                }
+            } //VER SI NO TRABA TODO
+
+            match thread::Builder::new()
                 .name("Client-Listener".into())
                 .spawn(move || {
-                    info!("Se lanzo un nuevo cliente.");
                     handle_client(
                         index,
                         &mut client_stream,
@@ -86,8 +95,14 @@ impl Server {
                         client_sender_2,
                         client_receiver,
                     );
-                })
-                .unwrap();
+                }) {
+                Ok(_) => {
+                    info!("Se lanzo un nuevo cliente.");
+                }
+                Err(_) => {
+                    error!("Error al lanzar un nuevo cliente.");
+                }
+            }
             index += 1;
         }
     }
@@ -100,7 +115,7 @@ pub fn handle_client(
     client_sender_2: Arc<Mutex<Sender<PacketThings>>>,
     client_receiver: Receiver<Vec<u8>>,
 ) {
-    let stream_cloned = stream.try_clone().unwrap();
+    let stream_cloned = stream.try_clone().unwrap(); // Si no puede clonar, paniqueo para cerrar el thread Client-Listner
     let mut current_client = ClientFlags {
         id,
         client_id: None,
@@ -110,10 +125,15 @@ pub fn handle_client(
         keep_alive: 1000,
     };
 
-    thread::Builder::new()
+    match thread::Builder::new()
         .name("Client-Communicator".into())
         .spawn(move || send_packets_to_client(client_sender_2, client_receiver, stream_cloned, id))
-        .unwrap();
+    {
+        Ok(_) => {}
+        Err(_) => {
+            error!("Error al lanzar el client communicator");
+        }
+    }
 
     read_packets_from_client(&mut current_client)
 }
@@ -125,8 +145,19 @@ fn read_packets_from_client(current_client: &mut ClientFlags) {
             Ok(_) => {
                 //Acordarse de leerlo  como BE, let mensaje = u32::from_be_bytes(num_buffer);
                 let packet_type = num_buffer[0].into();
-                let buff_size = remaining_length_read(&mut current_client.connection).unwrap();
-                read_packet(current_client, packet_type, buff_size, num_buffer[0]).unwrap();
+                match remaining_length_read(&mut current_client.connection) {
+                    Ok(buff_size) => {
+                        match read_packet(current_client, packet_type, buff_size, num_buffer[0]) {
+                            Ok(_) => {}
+                            Err(_) => {
+                                error!("Error al intentar leer un paquete");
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        error!("Error al intentar leer la longitud del buffer");
+                    }
+                }
             }
             Err(_) => {
                 inform_client_disconnect_to_coordinator(

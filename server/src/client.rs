@@ -1,11 +1,16 @@
 use crate::wildcard::compare_topic;
 use std::sync::mpsc::Sender;
 
+pub struct Subscription {
+    pub topic: String,
+    pub qos: u8,
+}
+
 pub struct Client {
     pub thread_id: usize,
     pub client_id: String,
     pub channel: Sender<Vec<u8>>,
-    pub topics: Vec<String>,
+    pub topics: Vec<Subscription>,
     pub publishes_received: Vec<Vec<u8>>,
     pub clean_session: u8,
     pub lastwill_topic: Option<String>,
@@ -32,14 +37,28 @@ impl Client {
         }
     }
 
-    pub fn subscribe(&mut self, topic: String) {
-        self.topics.push(topic);
+    pub fn subscribe(&mut self, topic: String, qos: u8) {
+        let new_subscription = Subscription { topic, qos };
+        self.topics.push(new_subscription);
     }
 
     pub fn unsubscribe(&mut self, topic: String) {
-        if let Some(indice) = self.topics.iter().position(|r| *r == topic) {
+        if let Some(indice) = self.topics.iter().position(|r| *(r.topic) == topic) {
             self.topics.remove(indice);
         }
+    }
+
+    pub fn is_subscribed_to_qos1(&self, topic: &str) -> bool {
+        if self.disconnected {
+            return false;
+        }
+        let mut subscribed: bool = false;
+        for topic_aux in &self.topics {
+            if topic_aux.qos == 1 && compare_topic(topic, topic_aux.topic.as_str()) {
+                subscribed = true;
+            }
+        }
+        subscribed
     }
 
     pub fn is_subscribed_to(&self, topic: &str) -> bool {
@@ -48,7 +67,7 @@ impl Client {
         }
         let mut subscribed: bool = false;
         for topic_aux in &self.topics {
-            if compare_topic(topic, topic_aux) {
+            if compare_topic(topic, topic_aux.topic.as_str()) {
                 subscribed = true;
             }
         }

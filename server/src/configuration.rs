@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use tracing::{error, info};
 
 const DEFAULT_PORT: u16 = 7666;
 const DEFAULT_DUMPFILE: &str = "dump.txt";
@@ -22,16 +23,10 @@ impl Configuration {
         }
     }
 
-    pub fn set_config(&mut self, file_path: &str) -> Result<bool, String> {
-        let map;
-        match self.parse(file_path) {
-            Ok(map_) => map = map_,
-            Err(err) => return Err(err),
-        }
-        if let Some(err) = self.set_all_params(map) {
-            return Err(err);
-        }
-        Ok(true)
+    pub fn set_config(&mut self, file_path: &str) -> Result<(), String> {
+        let map = self.parse(file_path)?;
+        self.set_all_params(map)?;
+        Ok(())
     }
 
     fn parse(&mut self, file_path: &str) -> Result<HashMap<String, String>, String> {
@@ -54,19 +49,28 @@ impl Configuration {
         Ok(map)
     }
 
-    fn set_all_params(&mut self, map: HashMap<String, String>) -> Option<String> {
+    fn set_all_params(&mut self, map: HashMap<String, String>) -> Result<(), String> {
         if let Some(logfile_) = map.get("logfile") {
             self.logfile = logfile_.to_string();
-            println!("Loaded log file : {}", self.logfile);
+            info!("Loaded log file : {}", self.logfile);
         }
         if let Some(port_) = map.get("port") {
             self.port = port_.parse().unwrap();
+            match port_.parse() {
+                Ok(port) => {
+                    self.port = port;
+                }
+                Err(_) => {
+                    error!("Error while parsing port from config file");
+                    return Err("Error while parsing port from config file".into());
+                }
+            }
         }
         if let Some(dumpfile_) = map.get("dumpfile") {
             self.dumpfile = dumpfile_.to_string();
-            println!("Uploaded archive configuration : {}", self.dumpfile);
+            info!("Uploaded archive configuration : {}", self.dumpfile);
         }
-        None
+        Ok(())
     }
 
     pub fn get_address(&self) -> String {
