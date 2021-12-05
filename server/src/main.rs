@@ -357,10 +357,16 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/ti/lle/ro");
-                        assert_eq!(bytes2string(
-                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ), "piniata");
+                        assert_eq!(
+                            bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                            "as/ti/lle/ro"
+                        );
+                        assert_eq!(
+                            bytes2string(
+                                &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                            ),
+                            "piniata"
+                        );
                         can_go_on = true;
                         first_pubback = false;
                     }
@@ -380,10 +386,16 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/ti/lle/ro");
-                        assert_eq!(bytes2string(
-                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ), "piniata");
+                        assert_eq!(
+                            bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                            "as/ti/lle/ro"
+                        );
+                        assert_eq!(
+                            bytes2string(
+                                &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                            ),
+                            "piniata"
+                        );
                         can_go_on = true;
                     } else {
                         assert_eq!(package_type, 0x40);
@@ -713,8 +725,14 @@ mod tests {
                     let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                     stream.read_exact(&mut buffer_paquete).unwrap();
                     let topic_name_len: usize = buffer_paquete[1] as usize;
-                    assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/tio/lle/ro");
-                    assert_eq!(bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()]), "piniata");
+                    assert_eq!(
+                        bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                        "as/tio/lle/ro"
+                    );
+                    assert_eq!(
+                        bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()]),
+                        "piniata"
+                    );
                     can_go_on = true;
                 }
                 Err(_) => {}
@@ -958,7 +976,10 @@ mod tests {
                     stream.read_exact(&mut buffer_paquete).unwrap();
                     let topic_name_len: usize = buffer_paquete[1] as usize;
                     assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as");
-                    assert_eq!(bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()]), "pepe");
+                    assert_eq!(
+                        bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()]),
+                        "pepe"
+                    );
                     can_go_on = true;
                 }
                 Err(_) => {}
@@ -1135,10 +1156,16 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), "as/ti/lle/ro");
-                        assert_eq!(bytes2string(
-                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ), body);
+                        assert_eq!(
+                            bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                            "as/ti/lle/ro"
+                        );
+                        assert_eq!(
+                            bytes2string(
+                                &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                            ),
+                            body
+                        );
                         can_go_on = true;
                         first_pubback = false;
                     }
@@ -1159,10 +1186,16 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; buff_size as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
-                        assert_eq!(bytes2string(
-                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ), body);
+                        assert_eq!(
+                            bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                            topic_publish
+                        );
+                        assert_eq!(
+                            bytes2string(
+                                &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                            ),
+                            body
+                        );
                         can_go_on = true;
                     } else {
                         assert_eq!(package_type, 0x40);
@@ -1288,10 +1321,16 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; num_buffer[1] as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
-                        assert_eq!(bytes2string(
-                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ), body);
+                        assert_eq!(
+                            bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                            topic_publish
+                        );
+                        assert_eq!(
+                            bytes2string(
+                                &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                            ),
+                            body
+                        );
                         can_go_on = true;
                         first_pubback = false;
                     }
@@ -1312,10 +1351,16 @@ mod tests {
                         let mut buffer_paquete: Vec<u8> = vec![0; buff_size as usize];
                         stream.read_exact(&mut buffer_paquete).unwrap();
                         let topic_name_len: usize = buffer_paquete[1] as usize;
-                        assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
-                        assert_eq!(bytes2string(
-                            &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                        ), body);
+                        assert_eq!(
+                            bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                            topic_publish
+                        );
+                        assert_eq!(
+                            bytes2string(
+                                &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
+                            ),
+                            body
+                        );
                         can_go_on = true;
                     } else {
                         assert_eq!(package_type, 0x40);
@@ -1341,10 +1386,14 @@ mod tests {
                     let mut buffer_paquete: Vec<u8> = vec![0; buff_size as usize];
                     stream.read_exact(&mut buffer_paquete).unwrap();
                     let topic_name_len: usize = buffer_paquete[1] as usize;
-                    assert_eq!(bytes2string(&buffer_paquete[2..(2 + topic_name_len)]), topic_publish);
-                    assert_eq!(bytes2string(
-                        &buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],
-                    ), body);
+                    assert_eq!(
+                        bytes2string(&buffer_paquete[2..(2 + topic_name_len)]),
+                        topic_publish
+                    );
+                    assert_eq!(
+                        bytes2string(&buffer_paquete[(4 + topic_name_len)..buffer_paquete.len()],),
+                        body
+                    );
                     can_go_on = true;
                 }
                 Err(_) => {}

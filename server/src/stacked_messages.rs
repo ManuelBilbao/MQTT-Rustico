@@ -1,10 +1,9 @@
 use crate::client::Client;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
+use std::thread;
 use std::time::Duration;
 use tracing::{info, warn};
-use std::thread;
 
 pub fn run_stacked_coordinator(lock_clients: Arc<Mutex<HashMap<usize, Client>>>) {
     loop {
