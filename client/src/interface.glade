@@ -337,6 +337,79 @@
                 <property name="y">611</property>
               </packing>
             </child>
+            <child>
+              <object class="GtkLabel" id="connection_succ_label">
+                <property name="width-request">100</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                  <attribute name="foreground" value="#3333d1d17a7a"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">372</property>
+                <property name="y">621</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkCheckButton" id="clean_session_check">
+                <property name="label" translatable="yes">Clean Session</property>
+                <property name="width-request">141</property>
+                <property name="height-request">53</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="draw-indicator">True</property>
+              </object>
+              <packing>
+                <property name="x">50</property>
+                <property name="y">560</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkSwitch" id="QOS_will_switch">
+                <property name="name">QOS_will_switch</property>
+                <property name="width-request">100</property>
+                <property name="height-request">44</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+              </object>
+              <packing>
+                <property name="x">870</property>
+                <property name="y">457</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">61</property>
+                <property name="height-request">55</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">QOS 0</property>
+              </object>
+              <packing>
+                <property name="x">858</property>
+                <property name="y">411</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">73</property>
+                <property name="height-request">57</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">QOS 1</property>
+                <attributes>
+                  <attribute name="foreground" value="#91914141acac"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">910</property>
+                <property name="y">410</property>
+              </packing>
+            </child>
           </object>
         </child>
         <child type="tab">
@@ -451,6 +524,64 @@
                 <property name="y">544</property>
               </packing>
             </child>
+            <child>
+              <object class="GtkCheckButton" id="retained_check">
+                <property name="label" translatable="yes">Retained</property>
+                <property name="name">retained_check</property>
+                <property name="width-request">119</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="draw-indicator">True</property>
+              </object>
+              <packing>
+                <property name="x">723</property>
+                <property name="y">179</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkSwitch" id="QOS_publish_switch">
+                <property name="name">QOS_publish_switch</property>
+                <property name="width-request">118</property>
+                <property name="height-request">52</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+              </object>
+              <packing>
+                <property name="x">726</property>
+                <property name="y">294</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">100</property>
+                <property name="height-request">38</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">QOS 0</property>
+              </object>
+              <packing>
+                <property name="x">702</property>
+                <property name="y">251</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">100</property>
+                <property name="height-request">37</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">QOS 1</property>
+                <attributes>
+                  <attribute name="foreground" value="#91914141acac"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">776</property>
+                <property name="y">251</property>
+              </packing>
+            </child>
           </object>
           <packing>
             <property name="position">1</property>
@@ -494,8 +625,8 @@
                 <property name="primary-icon-stock">gtk-find-and-replace</property>
               </object>
               <packing>
-                <property name="x">49</property>
-                <property name="y">284</property>
+                <property name="x">51</property>
+                <property name="y">204</property>
               </packing>
             </child>
             <child>
@@ -507,8 +638,8 @@
                 <property name="primary-icon-stock">gtk-dialog-error</property>
               </object>
               <packing>
-                <property name="x">50</property>
-                <property name="y">526</property>
+                <property name="x">49</property>
+                <property name="y">391</property>
               </packing>
             </child>
             <child>
@@ -523,8 +654,8 @@
                 </attributes>
               </object>
               <packing>
-                <property name="x">47</property>
-                <property name="y">213</property>
+                <property name="x">49</property>
+                <property name="y">147</property>
               </packing>
             </child>
             <child>
@@ -539,8 +670,8 @@
                 </attributes>
               </object>
               <packing>
-                <property name="x">50</property>
-                <property name="y">447</property>
+                <property name="x">47</property>
+                <property name="y">318</property>
               </packing>
             </child>
             <child>
@@ -585,8 +716,8 @@
                 <property name="receives-default">True</property>
               </object>
               <packing>
-                <property name="x">230</property>
-                <property name="y">526</property>
+                <property name="x">226</property>
+                <property name="y">391</property>
               </packing>
             </child>
             <child>
@@ -599,8 +730,8 @@
                 <property name="receives-default">True</property>
               </object>
               <packing>
-                <property name="x">226</property>
-                <property name="y">284</property>
+                <property name="x">231</property>
+                <property name="y">204</property>
               </packing>
             </child>
             <child>
@@ -617,6 +748,76 @@
               <packing>
                 <property name="x">625</property>
                 <property name="y">249</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">284</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">Current subscriptions:</property>
+                <attributes>
+                  <attribute name="scale" value="2"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">47</property>
+                <property name="y">423</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="current_subscriptions_label">
+                <property name="width-request">202</property>
+                <property name="height-request">39</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+              </object>
+              <packing>
+                <property name="x">48</property>
+                <property name="y">484</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkSwitch" id="QOS_subscribe_switch">
+                <property name="name">QOS_subscribe_switch</property>
+                <property name="width-request">100</property>
+                <property name="height-request">40</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+              </object>
+              <packing>
+                <property name="x">54</property>
+                <property name="y">284</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">65</property>
+                <property name="height-request">50</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">QOS 0</property>
+              </object>
+              <packing>
+                <property name="x">46</property>
+                <property name="y">242</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="width-request">73</property>
+                <property name="height-request">58</property>
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label" translatable="yes">QOS 1</property>
+                <attributes>
+                  <attribute name="foreground" value="#91914141acac"/>
+                </attributes>
+              </object>
+              <packing>
+                <property name="x">100</property>
+                <property name="y">238</property>
               </packing>
             </child>
           </object>
