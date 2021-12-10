@@ -1,5 +1,6 @@
 use crate::utils::remaining_length_encode;
 use crate::{calculate_connection_length, create_byte_with_flags, FlagsConexion, UserInformation};
+use rand::Rng;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::mpsc::Sender;
@@ -101,14 +102,14 @@ pub fn read_connack(buffer: Vec<u8>, connack_sender: Sender<String>) {
 }
 
 pub fn read_puback(buffer: Vec<u8>, puback_sender: Sender<String>) {
-    let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
+    let _packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
     puback_sender
         .send("Publish sent successfully\n".to_string())
         .expect("Error al mandar texto al gui");
 }
 
 pub fn read_suback(buffer: Vec<u8>) {
-    let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
+    let _packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
     let amount_of_topics = buffer.len() - 2;
     let mut topic_results: Vec<u8> = Vec::new();
     for i in 0..amount_of_topics {
@@ -231,8 +232,12 @@ pub fn send_packet_connection(
 }
 
 pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, qos: bool) {
-    let mut buffer: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
+    let mut rng = rand::thread_rng();
+    let packet_id: u16 = rng.gen();
+    let packet_id_left: u8 = (packet_id >> 8) as u8;
+    let packet_id_right: u8 = packet_id as u8;
 
+    let mut buffer: Vec<u8> = vec![packet_id_left, packet_id_right];
     for topic in topics.iter() {
         buffer.push((topic.len() >> 8) as u8);
         buffer.push((topic.len() & 0x00FF) as u8);
@@ -252,7 +257,11 @@ pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, qos: 
 }
 
 pub fn _send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
-    let mut buffer: Vec<u8> = vec![0x00, 0x00]; // Packet identifier, TODO: parametrizar
+    let mut rng = rand::thread_rng();
+    let packet_id: u16 = rng.gen();
+    let packet_id_left: u8 = (packet_id >> 8) as u8;
+    let packet_id_right: u8 = packet_id as u8;
+    let mut buffer: Vec<u8> = vec![packet_id_left, packet_id_right];
 
     for topic in topics.iter() {
         buffer.push((topic.len() >> 8) as u8);
@@ -278,8 +287,12 @@ pub fn _send_publish_packet(
     let mut buffer: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
     buffer.append(&mut topic.as_bytes().to_vec());
 
-    buffer.push(0x01); // Packet identifier, TODO: parametrizar
-    buffer.push(0x02);
+    let mut rng = rand::thread_rng();
+    let packet_id: u16 = rng.gen();
+    let packet_id_left: u8 = (packet_id >> 8) as u8;
+    let packet_id_right: u8 = packet_id as u8;
+    buffer.push(packet_id_left); // Packet identifier, TODO: parametrizar
+    buffer.push(packet_id_right);
 
     buffer.append(&mut message.as_bytes().to_vec());
 

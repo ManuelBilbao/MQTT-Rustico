@@ -3,6 +3,7 @@ use crate::packet::{bytes2string, Packet, SUCCESSFUL_CONNECTION};
 use crate::server::PacketThings;
 use crate::utils::remaining_length_encode;
 use crate::wildcard::compare_topic;
+use rand::Rng;
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
@@ -91,10 +92,13 @@ fn send_lastwill(
     let mut topic_message = "".to_owned();
     match lock_clients.lock() {
         Ok(mut locked) => {
+            let mut lastwill_exists = false;
+            let mut lastwill_qos = 0;
             match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
                     if let Some(topic) = &client.lastwill_topic {
                         if let Some(message) = &client.lastwill_message {
+                            lastwill_qos = client.lastwill_qos;
                             buffer_packet.push(Packet::Publish.into());
                             topic_name = topic.clone();
                             topic_message = message.clone();
@@ -106,32 +110,42 @@ fn send_lastwill(
                             buffer_packet.push(0);
                             buffer_packet.push(topic_name_bytes.len() as u8);
                             buffer_packet.append(&mut topic_name_bytes);
-                            buffer_packet.push(0);
-                            buffer_packet.push(50); //TODO CAMBIAR PACKETID
+                            let mut rng = rand::thread_rng();
+                            let packet_id: u16 = rng.gen();
+                            let packet_id_left: u8 = (packet_id >> 8) as u8;
+                            let packet_id_right: u8 = packet_id as u8;
+                            buffer_packet.push(packet_id_left);
+                            buffer_packet.push(packet_id_right);
                             buffer_packet.append(&mut topic_message_bytes);
-                            for client in locked.iter_mut() {
-                                if client.1.is_subscribed_to(&topic_name) {
-                                    let mut buffer_to_send: Vec<u8> = Vec::new();
-                                    buffer_to_send.extend(&buffer_packet);
-                                    let buffer_clone = buffer_to_send.clone();
-                                    match client.1.channel.send(buffer_to_send) {
-                                        Ok(_) => {
-                                            info!("Publish enviado al cliente");
-                                            if client.1.is_subscribed_to_qos1(&topic_name) {
-                                                client.1.publishes_received.push(buffer_clone);
-                                            }
-                                        }
-                                        Err(_) => {
-                                            debug!("Error al enviar Publish al cliente")
-                                        }
-                                    }
-                                }
-                            }
+                            lastwill_exists = true;
                         }
                     }
                 }
                 None => {
                     debug!("Error al buscar cliente para enviar lastwill")
+                }
+            }
+            if lastwill_exists {
+                for client_it in locked.iter_mut() {
+                    if client_it.1.is_subscribed_to(&topic_name) {
+                        let mut buffer_to_send: Vec<u8> = Vec::new();
+                        buffer_to_send.extend(&buffer_packet);
+                        let mut buffer_clone = buffer_to_send.clone();
+                        buffer_clone[0] |= 0x08;
+                        if lastwill_qos == 1 && client_it.1.is_subscribed_to_qos1(&topic_name) {
+                            client_it.1.publishes_received.push(buffer_clone);
+                        }
+                        if !client_it.1.disconnected {
+                            match client_it.1.channel.send(buffer_to_send) {
+                                Ok(_) => {
+                                    info!("Publish enviado al cliente");
+                                }
+                                Err(_) => {
+                                    debug!("Error al enviar Publish al cliente")
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -150,7 +164,7 @@ fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &Pac
                 match client.channel.send(close) {
                     Ok(_) => {}
                     Err(_) => {
-                        warn!("error al mandar mensaje")
+                        warn!("Error al mandar mensaje")
                     }
                 }
                 client.disconnected = true;
@@ -340,7 +354,8 @@ fn send_publish_to_customer(
                 if client.1.is_subscribed_to(topic_name) {
                     let mut buffer_to_send: Vec<u8> = Vec::new();
                     buffer_to_send.extend(&buffer_packet);
-                    let buffer_clone = buffer_to_send.clone();
+                    let mut buffer_clone = buffer_to_send.clone();
+                    buffer_clone[0] |= 0x08;
                     if publish_qos == 2 && client.1.is_subscribed_to_qos1(topic_name) {
                         client.1.publishes_received.push(buffer_clone);
                     }
@@ -366,8 +381,7 @@ fn send_publish_to_customer(
 
 fn process_publish(packet: &mut PacketThings) -> String {
     let topic_name_len: usize = ((packet.bytes[1] as usize) << 8) + packet.bytes[2] as usize;
-    let topic_name = bytes2string(&packet.bytes[3..(3 + topic_name_len)]);
-    topic_name
+    bytes2string(&packet.bytes[3..(3 + topic_name_len)])
 }
 
 fn send_unsubback(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: PacketThings) {

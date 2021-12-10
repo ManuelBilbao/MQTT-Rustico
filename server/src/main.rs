@@ -574,6 +574,7 @@ mod tests {
                 Err(_) => {}
             }
         }
+        thread::sleep(time::Duration::from_millis(20));
         //Arrange publish 2
         let mut buffer_publish_2: Vec<u8> = Vec::new();
         let topic_publish_2 = "car/li/tos".to_owned();
@@ -1173,6 +1174,7 @@ mod tests {
                 Err(_) => {}
             }
         }
+        thread::sleep(time::Duration::from_millis(20));
         //Assert publish
         can_go_on = false;
         while !can_go_on {

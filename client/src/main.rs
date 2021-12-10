@@ -94,7 +94,7 @@ fn client_run(
                     .unwrap();
                 }
                 Err(_) => {
-                    println!("No se");
+                    break;
                 }
             }
         }
