@@ -200,7 +200,8 @@ fn send_packets_to_client(
                                     Ok(_) => {
                                         info!(
                                             "Success sending disgraceful connection to coordinator"
-                                        )
+                                        );
+                                        break;
                                     }
                                     Err(_) => {
                                         debug!(

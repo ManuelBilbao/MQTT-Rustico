@@ -132,7 +132,7 @@ fn send_lastwill(
                         buffer_to_send.extend(&buffer_packet);
                         let mut buffer_clone = buffer_to_send.clone();
                         buffer_clone[0] |= 0x08;
-                        if lastwill_qos == 1 && client_it.1.is_subscribed_to_qos1(&topic_name) {
+                        if (!client_it.1.disconnected || client_it.1.clean_session == 0) && lastwill_qos == 1 && client_it.1.is_subscribed_to_qos1(&topic_name) {
                             client_it.1.publishes_received.push(buffer_clone);
                         }
                         if !client_it.1.disconnected {
@@ -267,14 +267,12 @@ fn process_client_id_and_info(
             let mut subscriptions: Vec<Subscription> = Vec::new();
             let mut publishes_received: Vec<Vec<u8>> = Vec::new();
             let mut old_thread_id = 0;
-            let mut clean_session_old = 0;
             for client in locked.iter_mut() {
                 if client.1.client_id == new_client_id {
                     already_exists = true;
                     subscriptions.append(&mut client.1.topics);
                     publishes_received.append(&mut client.1.publishes_received);
                     old_thread_id = client.1.thread_id;
-                    clean_session_old = client.1.clean_session;
                 }
             }
             if already_exists {
@@ -285,9 +283,7 @@ fn process_client_id_and_info(
                 Some(client) => {
                     client.client_id = new_client_id;
                     if already_exists {
-                        if clean_session_old == 0 {
-                            client.publishes_received.append(&mut publishes_received);
-                        }
+                        client.publishes_received.append(&mut publishes_received);
                         client.topics.append(&mut subscriptions);
                         for topic in client.topics.iter() {
                             for topic_retained in retained_msg.iter() {
@@ -356,7 +352,7 @@ fn send_publish_to_customer(
                     buffer_to_send.extend(&buffer_packet);
                     let mut buffer_clone = buffer_to_send.clone();
                     buffer_clone[0] |= 0x08;
-                    if publish_qos == 2 && client.1.is_subscribed_to_qos1(topic_name) {
+                    if (!client.1.disconnected || client.1.clean_session == 0) && publish_qos == 2 && client.1.is_subscribed_to_qos1(topic_name) {
                         client.1.publishes_received.push(buffer_clone);
                     }
                     if !client.1.disconnected {
