@@ -100,6 +100,9 @@ fn send_lastwill(
                         if let Some(message) = &client.lastwill_message {
                             lastwill_qos = client.lastwill_qos;
                             buffer_packet.push(Packet::Publish.into());
+                            if lastwill_qos == 1 {
+                                buffer_packet[0] |= 0x02;
+                            }
                             topic_name = topic.clone();
                             topic_message = message.clone();
                             let mut topic_name_bytes = topic.as_bytes().to_vec();
@@ -132,7 +135,10 @@ fn send_lastwill(
                         buffer_to_send.extend(&buffer_packet);
                         let mut buffer_clone = buffer_to_send.clone();
                         buffer_clone[0] |= 0x08;
-                        if (!client_it.1.disconnected || client_it.1.clean_session == 0) && lastwill_qos == 1 && client_it.1.is_subscribed_to_qos1(&topic_name) {
+                        if (!client_it.1.disconnected || client_it.1.clean_session == 0)
+                            && lastwill_qos == 1
+                            && client_it.1.is_subscribed_to_qos1(&topic_name)
+                        {
                             client_it.1.publishes_received.push(buffer_clone);
                         }
                         if !client_it.1.disconnected {
@@ -352,7 +358,10 @@ fn send_publish_to_customer(
                     buffer_to_send.extend(&buffer_packet);
                     let mut buffer_clone = buffer_to_send.clone();
                     buffer_clone[0] |= 0x08;
-                    if (!client.1.disconnected || client.1.clean_session == 0) && publish_qos == 2 && client.1.is_subscribed_to_qos1(topic_name) {
+                    if (!client.1.disconnected || client.1.clean_session == 0)
+                        && publish_qos == 2
+                        && client.1.is_subscribed_to_qos1(topic_name)
+                    {
                         client.1.publishes_received.push(buffer_clone);
                     }
                     if !client.1.disconnected {
