@@ -81,26 +81,22 @@ pub fn read_packet(
     let mut buffer_packet: Vec<u8> = vec![0; buffer_size];
     client.connection.read_exact(&mut buffer_packet)?;
     match packet_type {
-        Packet::Connect => {
-            match make_connection(client, buffer_packet, password_required) {
-                Ok(_) => {}
-                Err(error_code) => {
-                    send_connection_error(client, error_code);
+        Packet::Connect => match make_connection(client, buffer_packet, password_required) {
+            Ok(_) => {}
+            Err(error_code) => {
+                send_connection_error(client, error_code);
+            }
+        },
+        Packet::Publish => match make_publication(client, buffer_packet, byte_0) {
+            Ok(paquete_identifier) => {
+                if (byte_0 & 0x02) == 2 {
+                    send_publication_results(client, paquete_identifier);
                 }
             }
-        }
-        Packet::Publish => {
-            match make_publication(client, buffer_packet, byte_0) {
-                Ok(paquete_identifier) => {
-                    if (byte_0 & 0x02) == 2 {
-                        send_publication_results(client, paquete_identifier);
-                    }
-                }
-                Err(_) => {
-                    warn!("Error when publishing.");
-                }
+            Err(_) => {
+                warn!("Error when publishing.");
             }
-        }
+        },
         Packet::Subscribe => {
             change_subscription(client, buffer_packet, Packet::Subscribe);
         }
@@ -117,8 +113,7 @@ pub fn read_packet(
         Packet::PubAck => {
             remove_from_client_publishes(client, buffer_packet);
         }
-        _ => {
-        }
+        _ => {}
     }
 
     Ok(())
@@ -368,7 +363,11 @@ fn send_pingresp(client: &mut ClientFlags) {
     }
 }
 
-pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>, password_required: bool) -> Result<u8, u8> {
+pub fn make_connection(
+    client: &mut ClientFlags,
+    buffer_packet: Vec<u8>,
+    password_required: bool,
+) -> Result<u8, u8> {
     verify_protocol_name(&buffer_packet)?;
     verify_version_protocol(&buffer_packet[6])?;
 
@@ -393,7 +392,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>, passwor
         return Err(CONNECTION_IDENTIFIER_REFUSED);
     }
 
-    if password_required == true && (flag_username == false || flag_password == false){
+    if password_required && (!flag_username || !flag_password) {
         return Err(CONNECTION_IDENTIFIER_REFUSED);
     }
 

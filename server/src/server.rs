@@ -59,7 +59,12 @@ impl Server {
         thread::Builder::new()
             .name("Stacked messages coordinator".into())
             .spawn(move || run_stacked_coordinator(lock_clients_stacked_messages))?;
-        Server::wait_new_clients(&address, handler_clients_locks, &mutex_clients_sender, password_required)
+        Server::wait_new_clients(
+            &address,
+            handler_clients_locks,
+            &mutex_clients_sender,
+            password_required,
+        )
     }
 
     fn wait_new_clients(
@@ -149,7 +154,13 @@ fn read_packets_from_client(current_client: &mut ClientFlags, password_required:
                 let packet_type = num_buffer[0].into();
                 match remaining_length_read(&mut current_client.connection) {
                     Ok(buff_size) => {
-                        match read_packet(current_client, packet_type, buff_size, num_buffer[0], password_required) {
+                        match read_packet(
+                            current_client,
+                            packet_type,
+                            buff_size,
+                            num_buffer[0],
+                            password_required,
+                        ) {
                             Ok(_) => {}
                             Err(_) => {
                                 error!("Error trying to read a packet");

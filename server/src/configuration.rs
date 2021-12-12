@@ -87,7 +87,7 @@ impl Configuration {
         if let Some(password_) = map.get("password") {
             match password_.parse::<u32>() {
                 Ok(pass) => {
-                    if pass == 0{
+                    if pass == 0 {
                         self.password = false
                     }
                 }

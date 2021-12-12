@@ -283,9 +283,7 @@ fn process_client_id_and_info(
                         for topic in client.topics.iter() {
                             for (topic_retained, message_retained) in retained_msg.iter() {
                                 if compare_topic(topic_retained, &(topic.topic)) {
-                                    client
-                                        .publishes_received
-                                        .push(message_retained.clone());
+                                    client.publishes_received.push(message_retained.clone());
                                 }
                             }
                         }

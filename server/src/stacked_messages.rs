@@ -16,12 +16,11 @@ pub fn run_stacked_coordinator(lock_clients: Arc<Mutex<HashMap<usize, Client>>>)
                             match client.channel.send(message.clone()) {
                                 Ok(_) => {
                                     info!("Publish sent successfully.");
-
-                                },
+                                }
                                 Err(_) => warn!("Error sending publish to client."),
                             }
                         }
-                        let mut i:usize = 0;
+                        let mut i: usize = 0;
                         while i < client.publishes_received.len() {
                             let byte_0 = client.publishes_received[i as usize][0];
                             if (byte_0 & 0x02) == 0 {

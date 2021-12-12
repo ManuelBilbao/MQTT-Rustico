@@ -130,7 +130,12 @@ pub fn read_pingresp() {
     // PingResp viene vacio
     // TODO: Do something
 }
-pub fn read_publish(byte_0: u8, buffer: Vec<u8>, stream: &mut TcpStream, message_sender: Sender<String>) {
+pub fn read_publish(
+    byte_0: u8,
+    buffer: Vec<u8>,
+    stream: &mut TcpStream,
+    message_sender: Sender<String>,
+) {
     let topic_name_len: usize = ((buffer[0] as usize) << 8) + buffer[1] as usize;
     match bytes2string(&buffer[2..(2 + topic_name_len)]) {
         Ok(mut topic_name) => {
@@ -294,7 +299,7 @@ pub fn send_publish_packet(
     let mut buffer: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
     buffer.append(&mut topic.as_bytes().to_vec());
 
-    if qos == true{
+    if qos {
         let mut rng = rand::thread_rng();
         let packet_id: u16 = rng.gen();
         let packet_id_left: u8 = (packet_id >> 8) as u8;
@@ -316,8 +321,8 @@ pub fn send_publish_packet(
     let mut final_buffer = remaining_length_encode(buffer.len());
 
     let mut first_byte = u8::from(Packet::Publish) | bit_dup;
-    first_byte = first_byte | retain_byte;
-    first_byte = first_byte | qos_byte;
+    first_byte |= retain_byte;
+    first_byte |= qos_byte;
 
     final_buffer.insert(0, first_byte);
     final_buffer.append(&mut buffer);
