@@ -66,7 +66,7 @@ impl From<Packet> for u8 {
 
 pub fn read_packet(
     stream: &mut TcpStream,
-    package_type: Packet,
+    byte_0: u8,
     buffer_size: usize,
     puback_sender: Sender<String>,
     message_sender: Sender<String>,
@@ -74,6 +74,7 @@ pub fn read_packet(
 ) -> Result<(), std::io::Error> {
     let mut buffer_paquete: Vec<u8> = vec![0; buffer_size];
     let mut stream_clone = stream.try_clone().unwrap();
+    let package_type: Packet = byte_0.into();
     stream.read_exact(&mut buffer_paquete)?;
     match package_type {
         Packet::ConnAck => read_connack(buffer_paquete, connack_sender),
@@ -81,7 +82,7 @@ pub fn read_packet(
         Packet::SubAck => read_suback(buffer_paquete),
         Packet::UnsubAck => read_unsuback(buffer_paquete),
         Packet::PingResp => read_pingresp(),
-        Packet::Publish => read_publish(buffer_paquete, &mut stream_clone, message_sender),
+        Packet::Publish => read_publish(byte_0, buffer_paquete, &mut stream_clone, message_sender),
         _ => {
             // Manejar
             println!("No se que paqeute es");
@@ -129,12 +130,16 @@ pub fn read_pingresp() {
     // PingResp viene vacio
     // TODO: Do something
 }
-pub fn read_publish(buffer: Vec<u8>, stream: &mut TcpStream, message_sender: Sender<String>) {
+pub fn read_publish(byte_0: u8, buffer: Vec<u8>, stream: &mut TcpStream, message_sender: Sender<String>) {
     let topic_name_len: usize = ((buffer[0] as usize) << 8) + buffer[1] as usize;
     match bytes2string(&buffer[2..(2 + topic_name_len)]) {
         Ok(mut topic_name) => {
-            topic_name += "-";
-            match bytes2string(&buffer[(4 + topic_name_len)..buffer.len()]) {
+            topic_name += " - ";
+            let mut sum_index: usize = 2;
+            if (byte_0 | 0x02) == 2 {
+                sum_index = 4;
+            }
+            match bytes2string(&buffer[(sum_index + topic_name_len)..buffer.len()]) {
                 Ok(mut message) => {
                     message += "\n";
                     let topic_and_message = topic_name + &message;
@@ -151,10 +156,12 @@ pub fn read_publish(buffer: Vec<u8>, stream: &mut TcpStream, message_sender: Sen
             println!("Error procesando topico");
         }
     }
-    let mut packet_identifier = [0u8; 2];
-    packet_identifier[0] = buffer[topic_name_len + 2];
-    packet_identifier[1] = buffer[topic_name_len + 3];
-    send_puback_packet(stream, packet_identifier);
+    if (byte_0 | 0x02) == 2 {
+        let mut packet_identifier = [0u8; 2];
+        packet_identifier[0] = buffer[topic_name_len + 2];
+        packet_identifier[1] = buffer[topic_name_len + 3];
+        send_puback_packet(stream, packet_identifier);
+    }
 }
 
 pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
@@ -231,7 +238,7 @@ pub fn send_packet_connection(
     stream.write_all(&buffer).unwrap();
 }
 
-pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, qos: bool) {
+pub fn send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, qos: bool) {
     let mut rng = rand::thread_rng();
     let packet_id: u16 = rng.gen();
     let packet_id_left: u8 = (packet_id >> 8) as u8;
@@ -256,7 +263,7 @@ pub fn _send_subscribe_packet(stream: &mut TcpStream, topics: Vec<String>, qos: 
     stream.write_all(&final_buffer).unwrap();
 }
 
-pub fn _send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
+pub fn send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
     let mut rng = rand::thread_rng();
     let packet_id: u16 = rng.gen();
     let packet_id_left: u8 = (packet_id >> 8) as u8;
@@ -276,7 +283,7 @@ pub fn _send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
     stream.write_all(&final_buffer).unwrap();
 }
 
-pub fn _send_publish_packet(
+pub fn send_publish_packet(
     stream: &mut TcpStream,
     topic: String,
     message: String,
@@ -287,12 +294,14 @@ pub fn _send_publish_packet(
     let mut buffer: Vec<u8> = vec![(topic.len() >> 8) as u8, (topic.len() & 0x00FF) as u8];
     buffer.append(&mut topic.as_bytes().to_vec());
 
-    let mut rng = rand::thread_rng();
-    let packet_id: u16 = rng.gen();
-    let packet_id_left: u8 = (packet_id >> 8) as u8;
-    let packet_id_right: u8 = packet_id as u8;
-    buffer.push(packet_id_left); // Packet identifier, TODO: parametrizar
-    buffer.push(packet_id_right);
+    if qos == true{
+        let mut rng = rand::thread_rng();
+        let packet_id: u16 = rng.gen();
+        let packet_id_left: u8 = (packet_id >> 8) as u8;
+        let packet_id_right: u8 = packet_id as u8;
+        buffer.push(packet_id_left);
+        buffer.push(packet_id_right);
+    }
 
     buffer.append(&mut message.as_bytes().to_vec());
 

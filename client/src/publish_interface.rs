@@ -1,7 +1,7 @@
 extern crate glib;
 extern crate gtk;
 use self::gtk::atk::glib::clone;
-use crate::packet::_send_publish_packet;
+use crate::packet::send_publish_packet;
 use gtk::prelude::*;
 use std::io;
 use std::net::TcpStream;
@@ -28,7 +28,7 @@ pub fn build_publish_ui(
         let message = message_entry.text();
         let topic = topic_entry.text();
         let mut stream_clone2 = stream_clone.try_clone().expect("Cannot clone stream");
-        _send_publish_packet(&mut stream_clone2, topic.to_string(), message.to_string(), false, qos_publish_switch.is_active(), retained_check.is_active());
+        send_publish_packet(&mut stream_clone2, topic.to_string(), message.to_string(), false, qos_publish_switch.is_active(), retained_check.is_active());
         message_entry.set_properties(&[("text", &"".to_owned())]).unwrap();
         topic_entry.set_properties(&[("text", &"".to_owned())]).unwrap();
     }));

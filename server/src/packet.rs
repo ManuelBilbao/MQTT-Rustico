@@ -76,13 +76,13 @@ pub fn read_packet(
     packet_type: Packet,
     buffer_size: usize,
     byte_0: u8,
+    password_required: bool,
 ) -> Result<(), std::io::Error> {
     let mut buffer_packet: Vec<u8> = vec![0; buffer_size];
     client.connection.read_exact(&mut buffer_packet)?;
     match packet_type {
         Packet::Connect => {
-            info!("Connect package received");
-            match make_connection(client, buffer_packet) {
+            match make_connection(client, buffer_packet, password_required) {
                 Ok(_) => {}
                 Err(error_code) => {
                     send_connection_error(client, error_code);
@@ -90,13 +90,14 @@ pub fn read_packet(
             }
         }
         Packet::Publish => {
-            info!("Received Publish package");
             match make_publication(client, buffer_packet, byte_0) {
                 Ok(paquete_identifier) => {
-                    send_publication_results(client, paquete_identifier);
+                    if (byte_0 & 0x02) == 2 {
+                        send_publication_results(client, paquete_identifier);
+                    }
                 }
                 Err(_) => {
-                    warn!("error when publishing");
+                    warn!("Error when publishing.");
                 }
             }
         }
@@ -110,17 +111,13 @@ pub fn read_packet(
             send_pingresp(client);
         }
         Packet::Disconnect => {
-            //TODO will message
-            info!("Me llego un disconnect");
             inform_client_disconnect_to_coordinator(client, buffer_packet, Packet::Disconnect);
             close_streams(client);
         }
         Packet::PubAck => {
             remove_from_client_publishes(client, buffer_packet);
-            info!("Puback recibido del cliente");
         }
         _ => {
-            info!("Received unknown packet");
         }
     }
 
@@ -142,15 +139,15 @@ pub fn inform_client_disconnect_to_coordinator(
         Ok(sender_ok) => {
             match sender_ok.send(packet_to_server) {
                 Ok(_) => {
-                    info!("Success sending disconnect to coordinator thread")
+                    info!("Success sending disconnect to coordinator thread.")
                 }
                 Err(_) => {
-                    debug!("Error sending sending disconnect to coordinator thread")
+                    warn!("Error sending sending disconnect to coordinator thread.")
                 }
             };
         }
         Err(_) => {
-            warn!("Error reading coordinator channel")
+            warn!("Error reading coordinator channel.")
         }
     }
 }
@@ -161,14 +158,14 @@ fn close_streams(client: &mut ClientFlags) {
 
     match aux {
         Ok(0) => {
-            info!("El cliente ya habia cerrado el stream")
+            info!("Client has closed the stream.")
         }
         _ => {
             client
                 .connection
                 .shutdown(Shutdown::Both)
                 .expect("shutdown call failed");
-            info!("Cerre el stream con el cliente");
+            info!("Stream with client closed.");
         }
     }
     match client.sender.lock() {
@@ -176,10 +173,10 @@ fn close_streams(client: &mut ClientFlags) {
             drop(locked);
         }
         Err(_) => {
-            error!("Error al acceder al lock");
+            error!("Error accessing the lock.");
         }
     }
-    info!("Cerre el stream con el coordinator!");
+    info!("Closed stream with Coordinator.");
 }
 
 fn inform_new_connection(
@@ -226,15 +223,15 @@ fn inform_new_connection(
             Ok(sender_ok) => {
                 match sender_ok.send(packet_to_server) {
                     Ok(_) => {
-                        info!("Success sending client id change to the coordinator thread")
+                        info!("Success sending client id change to the Coordinator thread")
                     }
                     Err(_) => {
-                        debug!("Error sending client id change to coordinator thread")
+                        warn!("Error sending client id change to the Coordinator thread")
                     }
                 };
             }
             Err(_) => {
-                warn!("Error reading coordinator channel")
+                warn!("Error reading coordinator channel.")
             }
         }
     }
@@ -251,15 +248,15 @@ fn change_subscription(client: &mut ClientFlags, buffer_packet: Vec<u8>, tipo: P
         Ok(sender_ok) => {
             match sender_ok.send(packet_to_server) {
                 Ok(_) => {
-                    info!("Success sending subscription change to the coordinator thread")
+                    info!("Success sending subscription change to the coordinator thread.")
                 }
                 Err(_) => {
-                    debug!("Error sending subscription change to coordinator thread")
+                    debug!("Error sending subscription change to coordinator thread.")
                 }
             };
         }
         Err(_) => {
-            warn!("Error reading subscription change")
+            warn!("Error reading subscription change.")
         }
     }
 }
@@ -271,7 +268,6 @@ pub fn verify_protocol_name(buffer: &[u8]) -> Result<(), u8> {
             return Err(INCORRECT_SERVER_CONNECTION);
         }
     }
-    info!("Correct connection protocol name");
     Ok(())
 }
 
@@ -291,10 +287,10 @@ pub fn send_connection_error(client: &mut ClientFlags, result_code: u8) {
 
     match client.connection.write_all(&buffer) {
         Ok(_) => {
-            info!("Envié el connack con un error");
+            info!("Sent Connack packet with error code.");
         }
         Err(_) => {
-            error!("Error al comunicarse con el cliente");
+            error!("Error communicating with the client.");
         }
     }
 }
@@ -308,10 +304,10 @@ fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]
 
     match client.connection.write_all(&buffer) {
         Ok(_) => {
-            info!("Envié el pubback");
+            info!("Puback packet sent");
         }
         Err(_) => {
-            error!("Error al enviar pubback");
+            warn!("Error sending Puback packet");
         }
     }
 }
@@ -335,9 +331,9 @@ fn make_publication(
     match sender {
         Ok(sender_ok) => match sender_ok.send(packet_to_server) {
             Ok(_) => Ok(packet_identifier),
-            Err(_) => Err("error".to_owned()),
+            Err(_) => Err("Error".to_owned()),
         },
-        Err(_) => Err("error".to_owned()),
+        Err(_) => Err("Error".to_owned()),
     }
 }
 
@@ -352,10 +348,10 @@ fn remove_from_client_publishes(client: &mut ClientFlags, buffer_packet: Vec<u8>
         Ok(sender_ok) => match sender_ok.send(packet_to_server) {
             Ok(_) => {}
             Err(_) => {
-                error!("Error al enviar un mensaje al client")
+                error!("Error sending message to client.")
             }
         },
-        Err(_) => error!("Error al enviar un mensaje al client"),
+        Err(_) => error!("Error sending message to client."),
     }
 }
 
@@ -364,15 +360,15 @@ fn send_pingresp(client: &mut ClientFlags) {
 
     match client.connection.write_all(&buffer) {
         Ok(_) => {
-            info!("Enviado PingResp");
+            debug!("Pingresp packet sent.");
         }
         Err(_) => {
-            error!("Error al enviar pingresp");
+            error!("Error sending Pingresp.");
         }
     }
 }
 
-pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Result<u8, u8> {
+pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>, password_required: bool) -> Result<u8, u8> {
     verify_protocol_name(&buffer_packet)?;
     verify_version_protocol(&buffer_packet[6])?;
 
@@ -391,12 +387,18 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
 
     if size_client_id != 0 {
         client_id = Some(bytes2string(&buffer_packet[12..12 + size_client_id]));
-        // En UTF-8
+    }
+
+    if client_id == None {
+        return Err(CONNECTION_IDENTIFIER_REFUSED);
+    }
+
+    if password_required == true && (flag_username == false || flag_password == false){
+        return Err(CONNECTION_IDENTIFIER_REFUSED);
     }
 
     let mut index: usize = (12 + size_client_id) as usize;
 
-    // Atajar si tamanio_x = 0
     let mut will_topic = None;
     let mut will_message = None;
     if flag_will_flag {
@@ -442,15 +444,6 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
         }
     }
 
-    //PROCESAR
-    if client_id == None {
-        return Err(CONNECTION_IDENTIFIER_REFUSED);
-    }
-
-    if flag_will_retain && flag_will_qos == 2 {
-        //
-    }
-
     if keep_alive > 0 {
         let wait = (f32::from(keep_alive) * 1.5) as u64;
         if client
@@ -458,13 +451,13 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
             .set_read_timeout(Some(Duration::new(wait, 0)))
             .is_err()
         {
-            error!("Error al establecer el tiempo límite de espera para un cliente")
+            error!("Error establishing the limit time for a client.")
         }
     }
 
     client.client_id = client_id;
     client.clean_session = flag_clean_session as u8;
-    debug!("clean session {}", flag_clean_session);
+    debug!("Clean session {}", flag_clean_session);
     client.keep_alive = keep_alive;
 
     inform_new_connection(
@@ -474,7 +467,7 @@ pub fn make_connection(client: &mut ClientFlags, buffer_packet: Vec<u8>) -> Resu
         flag_will_qos,
         flag_will_retain,
     );
-    Ok(1) // TODO: Persistent Sessions
+    Ok(1)
 }
 
 pub fn bytes2string(bytes: &[u8]) -> String {

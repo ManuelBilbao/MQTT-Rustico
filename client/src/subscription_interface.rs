@@ -1,7 +1,7 @@
 extern crate glib;
 extern crate gtk;
 use self::gtk::atk::glib::clone;
-use crate::packet::{_send_subscribe_packet, _send_unsubscribe_packet};
+use crate::packet::{send_subscribe_packet, send_unsubscribe_packet};
 use crate::publish_interface::ReceiverWindow;
 use gtk::prelude::*;
 use std::net::TcpStream;
@@ -33,7 +33,7 @@ pub fn build_subscription_ui(
             current_subscriptions_label.set_text(text.as_str());
         }
         let mut stream_clone3 = stream_clone.try_clone().expect("Cannot clone stream");
-        _send_subscribe_packet(&mut stream_clone3, topic_vec, qos_subscribe_switch.is_active());
+        send_subscribe_packet(&mut stream_clone3, topic_vec, qos_subscribe_switch.is_active());
         subscribe_entry.set_properties(&[("text", &"".to_owned())]).unwrap();
     }));
     let stream_clone2 = stream.try_clone().expect("Cannot clone stream");
@@ -43,7 +43,7 @@ pub fn build_subscription_ui(
         let text = str::replace(&current_subscriptions_label.text(), &("\n".to_string() + &topic), "");
         current_subscriptions_label.set_text(text.as_str());
         let mut stream_clone3 = stream_clone2.try_clone().expect("Cannot clone stream");
-        _send_unsubscribe_packet(&mut stream_clone3, topic_vec);
+        send_unsubscribe_packet(&mut stream_clone3, topic_vec);
         unsubscribe_entry.set_properties(&[("text", &"".to_owned())]).unwrap();
     }));
     sub_window_2.build(connect_builder, sub_receiver_2, "message_label");

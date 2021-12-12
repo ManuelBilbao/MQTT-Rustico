@@ -9,35 +9,32 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info, warn};
 
-pub struct RetainedMessage {
-    topic: String,
-    message: Vec<u8>,
-}
-
 pub fn run_coordinator(
     coordinator_receiver: Receiver<PacketThings>,
     lock_clients: Arc<Mutex<HashMap<usize, Client>>>,
 ) {
-    let mut retained_messages = Vec::new();
-    info!("Se lanza el thread-coordinator");
+    let mut retained_messages: HashMap<String, Vec<u8>> = HashMap::new();
+    info!("Launched thread Coordinator.");
     loop {
         match coordinator_receiver.recv() {
             Ok(mut packet) => match packet.packet_type {
                 Packet::Connect => {
+                    info!("Connection packet received.");
                     process_client_id_and_info(&lock_clients, &mut packet, &retained_messages)
                 }
                 Packet::Subscribe => {
-                    info!("Se recibio un paquete Subscribe.");
+                    info!("Subscribe packet received.");
                     let vector_with_qos = process_subscribe(&lock_clients, &packet);
                     send_subback(&lock_clients, &packet, vector_with_qos);
                     send_retained_messages(&lock_clients, &packet, &mut retained_messages)
                 }
                 Packet::Unsubscribe => {
-                    info!("Se recibio un paquete Unsubscribe.");
+                    info!("Unsubscribe packet received.");
                     unsubscribe_process(&lock_clients, &packet);
                     send_unsubback(&lock_clients, packet)
                 }
                 Packet::Publish => {
+                    debug!("Publish packet received.");
                     let topic_name = process_publish(&mut packet);
                     if topic_name.is_empty() {
                         continue;
@@ -45,11 +42,7 @@ pub fn run_coordinator(
                     if is_to_retained(&packet) {
                         let publish_packet =
                             send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
-                        let new_retained = RetainedMessage {
-                            topic: topic_name,
-                            message: publish_packet,
-                        };
-                        retained_messages.push(new_retained);
+                        retained_messages.insert(topic_name, publish_packet);
                     } else {
                         send_publish_to_customer(&lock_clients, &mut packet, &topic_name);
                     }
@@ -58,24 +51,20 @@ pub fn run_coordinator(
                     remove_publishes(&lock_clients, &mut packet);
                 }
                 Packet::Disconnect => {
-                    info!("Se recibio un paquete Disconnect.");
+                    debug!("Disconnect packet received.");
                     close_process(&lock_clients, &packet);
                 }
                 Packet::Disgrace => {
-                    info!("Se recibio un paquete desconexión disgraceful.");
+                    debug!("Disgraceful disconnect packet received.");
                     close_disgraceful(&lock_clients, &packet);
                     let (publish_packet, topic_name, publish_message) =
                         send_lastwill(&lock_clients, &packet);
                     if !publish_packet.is_empty() {
-                        let new_retained = RetainedMessage {
-                            topic: topic_name,
-                            message: publish_message.as_bytes().to_vec(),
-                        };
-                        retained_messages.push(new_retained);
+                        retained_messages.insert(topic_name, publish_message.as_bytes().to_vec());
                     }
                 }
                 _ => {
-                    debug!("Se recibio un paquete desconocido.")
+                    debug!("Unknown packet received.")
                 }
             },
             Err(_e) => {}
@@ -125,29 +114,29 @@ fn send_lastwill(
                     }
                 }
                 None => {
-                    debug!("Error al buscar cliente para enviar lastwill")
+                    warn!("Error searching client for send lastwill")
                 }
             }
             if lastwill_exists {
-                for client_it in locked.iter_mut() {
-                    if client_it.1.is_subscribed_to(&topic_name) {
+                for (_, client_it) in locked.iter_mut() {
+                    if client_it.is_subscribed_to(&topic_name) {
                         let mut buffer_to_send: Vec<u8> = Vec::new();
                         buffer_to_send.extend(&buffer_packet);
                         let mut buffer_clone = buffer_to_send.clone();
                         buffer_clone[0] |= 0x08;
-                        if (!client_it.1.disconnected || client_it.1.clean_session == 0)
+                        if (!client_it.disconnected || client_it.clean_session == 0)
                             && lastwill_qos == 1
-                            && client_it.1.is_subscribed_to_qos1(&topic_name)
+                            && client_it.is_subscribed_to_qos1(&topic_name)
                         {
-                            client_it.1.publishes_received.push(buffer_clone);
+                            client_it.publishes_received.push(buffer_clone);
                         }
-                        if !client_it.1.disconnected {
-                            match client_it.1.channel.send(buffer_to_send) {
+                        if !client_it.disconnected {
+                            match client_it.channel.send(buffer_to_send) {
                                 Ok(_) => {
-                                    info!("Publish enviado al cliente");
+                                    debug!("Publish sent to customer.");
                                 }
                                 Err(_) => {
-                                    debug!("Error al enviar Publish al cliente")
+                                    debug!("Error sending publish to customer.")
                                 }
                             }
                         }
@@ -156,7 +145,7 @@ fn send_lastwill(
             }
         }
         Err(_) => {
-            warn!("Imposible acceder al lock desde el coordinador")
+            warn!("Unable to get the clients lock.")
         }
     }
     (buffer_packet, topic_name, topic_message)
@@ -170,17 +159,17 @@ fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &Pac
                 match client.channel.send(close) {
                     Ok(_) => {}
                     Err(_) => {
-                        warn!("Error al mandar mensaje")
+                        warn!("Error sending secret packet.")
                     }
                 }
                 client.disconnected = true;
             }
             None => {
-                debug!("Error al buscar cliente para desconectar")
+                debug!("Error looking client to erase.")
             }
         },
         Err(_) => {
-            warn!("Imposible acceder al lock desde el coordinador")
+            warn!("Unable to get the clients lock.")
         }
     }
 }
@@ -194,18 +183,18 @@ fn close_disgraceful(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: 
                     match client.channel.send(close) {
                         Ok(_) => {}
                         Err(_) => {
-                            warn!("error al mandar mensaje")
+                            warn!("Error sending the message")
                         }
                     }
                     client.disconnected = true;
                 }
             }
             None => {
-                debug!("Error al buscar cliente para desconectar")
+                debug!("Error trying to find usen on hash")
             }
         },
         Err(_) => {
-            warn!("Imposible acceder al lock desde el coordinador")
+            warn!("Unable to access lock from coordinador.")
         }
     }
 }
@@ -221,16 +210,16 @@ fn remove_publishes(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &
                         ((r[topic_name_len + 4] as u16) << 8) + r[topic_name_len + 5] as u16;
                     publish_packet_identifier == puback_packet_identifier
                 }) {
-                    info!("eliminado publish del vector");
+                    info!("Publish removed from vector");
                     client.publishes_received.remove(indice2);
                 }
             }
             None => {
-                debug!("Cliente no encontrado en hashmap")
+                debug!("Client not found on hashmap")
             }
         },
         Err(_) => {
-            warn!("Error al intentar eliminar un publish.")
+            warn!("Error trying to delete a publish.")
         }
     }
 }
@@ -242,7 +231,7 @@ fn is_to_retained(packet: &PacketThings) -> bool {
 fn process_client_id_and_info(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &mut PacketThings,
-    retained_msg: &[RetainedMessage],
+    retained_msg: &HashMap<String, Vec<u8>>,
 ) {
     match lock_clients.lock() {
         Ok(mut locked) => {
@@ -292,11 +281,11 @@ fn process_client_id_and_info(
                         client.publishes_received.append(&mut publishes_received);
                         client.topics.append(&mut subscriptions);
                         for topic in client.topics.iter() {
-                            for topic_retained in retained_msg.iter() {
-                                if compare_topic(&topic_retained.topic, &(topic.topic)) {
+                            for (topic_retained, message_retained) in retained_msg.iter() {
+                                if compare_topic(topic_retained, &(topic.topic)) {
                                     client
                                         .publishes_received
-                                        .push(topic_retained.message.clone());
+                                        .push(message_retained.clone());
                                 }
                             }
                         }
@@ -314,12 +303,12 @@ fn process_client_id_and_info(
                     }
                 }
                 None => {
-                    debug!("cliente no encontrado en hashmap")
+                    debug!("Client not found on hashmap")
                 }
             }
         }
         Err(_) => {
-            warn!("Imposible acceder al lock desde el cordinador")
+            warn!("Unable to access lock from coordinador.")
         }
     }
 }
@@ -329,10 +318,10 @@ fn send_connection_result(client: &mut Client, result_code: u8, session: u8) {
 
     match client.channel.send(buffer) {
         Ok(_) => {
-            info!("Envié el connack exitoso al client sender");
+            info!("Sent the connack sucessfull to the client sender");
         }
         Err(_) => {
-            error!("No pude enviar connack al client sender");
+            error!("Couldn't send connack to the client sender");
         }
     };
 }
@@ -367,10 +356,10 @@ fn send_publish_to_customer(
                     if !client.1.disconnected {
                         match client.1.channel.send(buffer_to_send) {
                             Ok(_) => {
-                                info!("Publish enviado al cliente");
+                                info!("Publish sent to cliente");
                             }
                             Err(_) => {
-                                debug!("Error al enviar Publish al cliente")
+                                debug!("Error sending Publish to the client")
                             }
                         }
                     }
@@ -378,7 +367,7 @@ fn send_publish_to_customer(
             }
         }
         Err(_) => {
-            warn!("Imposible acceder al lock desde el cordinador")
+            warn!("Unable to access lock from coordinador.")
         }
     }
     buffer_packet
@@ -400,18 +389,18 @@ fn send_unsubback(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: Pac
         Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
             Some(client) => match client.channel.send(buffer) {
                 Ok(_) => {
-                    info!("SubBack enviado.");
+                    info!("SubBack sent.");
                 }
                 Err(_) => {
-                    debug!("Error con el envio del Unsubback.")
+                    debug!("Error sending Unsubback.")
                 }
             },
             None => {
-                warn!("cliente no encontrado en hashmap")
+                warn!("Client not found on hashmap")
             }
         },
         Err(_) => {
-            warn!("Imposible acceder al lock desde el cordinador.")
+            warn!("Unable to access lock from coordinador.")
         }
     }
 }
@@ -428,14 +417,14 @@ fn unsubscribe_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet
             Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
                     client.unsubscribe(topic);
-                    info!("El cliente se desuscribio del topico.")
+                    info!("Cliente unsubscribed from a topic.")
                 }
                 None => {
-                    debug!("cliente no encontrado en hashmap")
+                    debug!("Client not found on hashmap")
                 }
             },
             Err(_) => {
-                warn!("Error al intentar desuscribir de un topico.")
+                warn!("Error trying to unsubscribe from a topic.")
             }
         }
     }
@@ -458,18 +447,18 @@ fn send_subback(
         Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
             Some(client) => match client.channel.send(buffer) {
                 Ok(_) => {
-                    info!("SubBack enviado")
+                    info!("SubBack sent")
                 }
                 Err(_) => {
-                    debug!("Error al enviar Subback")
+                    debug!("Error sending Subback")
                 }
             },
             None => {
-                warn!("cliente no encontrado en hashmap")
+                warn!("Client not found on hashmap")
             }
         },
         Err(_) => {
-            warn!("Imposible acceder al lock desde el cordinador")
+            warn!("Unable to access lock from coordinador.")
         }
     }
 }
@@ -493,10 +482,10 @@ fn process_subscribe(
                 Some(client) => {
                     client.subscribe(topic.clone(), qos);
                     vector_with_qos.push(qos);
-                    info!("El cliente se subscribio al topico")
+                    info!("Client subscribed to a topic")
                 }
                 None => {
-                    error!("Cliente no encontrado en hashmap")
+                    error!("Client not found on hashmap")
                 }
             },
             Err(_) => vector_with_qos.push(0x80),
@@ -508,7 +497,7 @@ fn process_subscribe(
 fn send_retained_messages(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &PacketThings,
-    retained_messages: &mut Vec<RetainedMessage>,
+    retained_messages: &mut HashMap<String, Vec<u8>>,
 ) {
     let mut index = 2;
     while index < (packet.bytes.len() - 2) {
@@ -520,27 +509,27 @@ fn send_retained_messages(
         match lock_clients.lock() {
             Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
                 Some(client) => {
-                    for topic_retained in retained_messages.iter() {
-                        if compare_topic(&topic_retained.topic, &topic) {
+                    for (topic_retained, message_retained) in retained_messages.iter() {
+                        if compare_topic(topic_retained, &topic) {
                             let mut buffer_to_send: Vec<u8> = Vec::new();
-                            buffer_to_send.extend(&topic_retained.message);
+                            buffer_to_send.extend(message_retained);
                             match client.channel.send(buffer_to_send) {
                                 Ok(_) => {
-                                    info!("Publish retained enviado al cliente")
+                                    info!("Publish retained sent to client")
                                 }
                                 Err(_) => {
-                                    error!("Error al enviar Publish retained al cliente")
+                                    error!("Error sendint retained Publish to client")
                                 }
                             }
                         }
                     }
                 }
                 None => {
-                    error!("Cliente no encontrado en hashmap")
+                    error!("Client not found on hashmap")
                 }
             },
             Err(_) => {
-                error!("Imposible acceder al lock")
+                error!("Unable to access lock from coordinador.")
             }
         }
     }

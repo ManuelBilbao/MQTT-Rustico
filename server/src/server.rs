@@ -40,7 +40,7 @@ impl Server {
     }
 
     pub fn run(&self) -> std::io::Result<()> {
-        info!("Arranca sistema de logs.");
+        info!("Log system started");
         let address = self.cfg.get_address();
         debug!("IP: {}", &address); //
         println!("IP: {}", &address); //
@@ -52,19 +52,21 @@ impl Server {
         let (clients_sender, coordinator_receiver): (Sender<PacketThings>, Receiver<PacketThings>) =
             mpsc::channel();
         let mutex_clients_sender = Arc::new(Mutex::new(clients_sender));
+        let password_required = self.cfg.password;
         thread::Builder::new()
             .name("Coordinator".into())
             .spawn(move || run_coordinator(coordinator_receiver, lock_clients))?;
         thread::Builder::new()
             .name("Stacked messages coordinator".into())
             .spawn(move || run_stacked_coordinator(lock_clients_stacked_messages))?;
-        Server::wait_new_clients(&address, handler_clients_locks, &mutex_clients_sender)
+        Server::wait_new_clients(&address, handler_clients_locks, &mutex_clients_sender, password_required)
     }
 
     fn wait_new_clients(
         address: &str,
         handler_clients_lock: Arc<Mutex<HashMap<usize, Client>>>,
         clients_sender: &Arc<Mutex<Sender<PacketThings>>>,
+        password_required: bool,
     ) -> std::io::Result<()> {
         let mut index: usize = 1;
         loop {
@@ -81,10 +83,9 @@ impl Server {
                     locked.insert(client.thread_id, client);
                 }
                 Err(_) => {
-                    error!("Error al intentar agregar el nuevo cliente");
+                    error!("Error adding new client");
                 }
-            } //VER SI NO TRABA TODO
-
+            }
             match thread::Builder::new()
                 .name("Client-Listener".into())
                 .spawn(move || {
@@ -94,13 +95,14 @@ impl Server {
                         client_sender_1,
                         client_sender_2,
                         client_receiver,
+                        password_required,
                     );
                 }) {
                 Ok(_) => {
-                    info!("Se lanzo un nuevo cliente.");
+                    info!("New client thread");
                 }
                 Err(_) => {
-                    error!("Error al lanzar un nuevo cliente.");
+                    error!("Error running a new client thread");
                 }
             }
             index += 1;
@@ -114,6 +116,7 @@ pub fn handle_client(
     client_sender_1: Arc<Mutex<Sender<PacketThings>>>,
     client_sender_2: Arc<Mutex<Sender<PacketThings>>>,
     client_receiver: Receiver<Vec<u8>>,
+    password_required: bool,
 ) {
     let stream_cloned = stream.try_clone().unwrap(); // Si no puede clonar, paniqueo para cerrar el thread Client-Listner
     let mut current_client = ClientFlags {
@@ -131,31 +134,30 @@ pub fn handle_client(
     {
         Ok(_) => {}
         Err(_) => {
-            error!("Error al lanzar el client communicator");
+            error!("Error running client communicator");
         }
     }
 
-    read_packets_from_client(&mut current_client)
+    read_packets_from_client(&mut current_client, password_required)
 }
 
-fn read_packets_from_client(current_client: &mut ClientFlags) {
+fn read_packets_from_client(current_client: &mut ClientFlags, password_required: bool) {
     loop {
-        let mut num_buffer = [0u8; 1]; //Recibimos 2 bytes
+        let mut num_buffer = [0u8; 1];
         match current_client.connection.read_exact(&mut num_buffer) {
             Ok(_) => {
-                //Acordarse de leerlo  como BE, let mensaje = u32::from_be_bytes(num_buffer);
                 let packet_type = num_buffer[0].into();
                 match remaining_length_read(&mut current_client.connection) {
                     Ok(buff_size) => {
-                        match read_packet(current_client, packet_type, buff_size, num_buffer[0]) {
+                        match read_packet(current_client, packet_type, buff_size, num_buffer[0], password_required) {
                             Ok(_) => {}
                             Err(_) => {
-                                error!("Error al intentar leer un paquete");
+                                error!("Error trying to read a packet");
                             }
                         }
                     }
                     Err(_) => {
-                        error!("Error al intentar leer la longitud del buffer");
+                        error!("Error trying to read buffer size");
                     }
                 }
             }
@@ -165,7 +167,7 @@ fn read_packets_from_client(current_client: &mut ClientFlags) {
                     Vec::new(),
                     Packet::Disgrace,
                 );
-                info!("El cliente se desconecto disgracefully");
+                info!("Client disconnected disgracefully");
                 break;
             }
         }
@@ -182,7 +184,7 @@ fn send_packets_to_client(
         match client_receiver.recv() {
             Ok(val) => {
                 if val[0] == 255 {
-                    info!("Cerrando thread de comunicación con el cliente");
+                    info!("Closing Client-Communicator thread");
                     break;
                 }
                 match stream_cloned.write_all(&val) {
@@ -199,19 +201,19 @@ fn send_packets_to_client(
                                 match sender_ok.send(packet_to_server) {
                                     Ok(_) => {
                                         info!(
-                                            "Success sending disgraceful connection to coordinator"
+                                            "Success sending disgraceful connection to Coordinator."
                                         );
                                         break;
                                     }
                                     Err(_) => {
-                                        debug!(
-                                            "Error sending disgraceful connection to coordinator"
+                                        warn!(
+                                            "Error sending disgraceful connection to Coordinator."
                                         )
                                     }
                                 };
                             }
                             Err(_) => {
-                                warn!("Error reading coordinator channel")
+                                warn!("Error reading coordinator channel.")
                             }
                         }
                     }

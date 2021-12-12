@@ -81,11 +81,10 @@ fn client_run(
             }
             match read_stream.read_exact(&mut num_buffer) {
                 Ok(_) => {
-                    let package_type = num_buffer[0].into();
                     let buff_size = remaining_length_read(&mut read_stream).unwrap();
                     read_packet(
                         &mut read_stream,
-                        package_type,
+                        num_buffer[0],
                         buff_size,
                         puback_sender.clone(),
                         message_sender.clone(),

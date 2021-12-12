@@ -2,24 +2,24 @@ use std::collections::HashMap;
 use tracing::{error, info};
 
 const DEFAULT_PORT: u16 = 7666;
-const DEFAULT_DUMPFILE: &str = "dump.txt";
 const DEFAULT_LOGFILE: &str = "logfile.txt";
 const DEFAULT_IP: &str = "127.0.0.1";
+const DEFAULT_PASSWORD: bool = true;
 
 pub struct Configuration {
     port: u16,
-    dumpfile: String,
     logfile: String,
     ip: String,
+    pub password: bool,
 }
 
 impl Configuration {
     pub fn new() -> Self {
         Configuration {
             port: DEFAULT_PORT,
-            dumpfile: DEFAULT_DUMPFILE.to_string(),
             logfile: DEFAULT_LOGFILE.to_string(),
             ip: DEFAULT_IP.to_string(),
+            password: DEFAULT_PASSWORD,
         }
     }
 
@@ -27,6 +27,19 @@ impl Configuration {
         let map = self.parse(file_path)?;
         self.set_all_params(map)?;
         Ok(())
+    }
+
+    fn check_number_between(&mut self, number: &str, bottom: u32, top: u32) -> bool {
+        let int_number: u32;
+        match number.parse::<u32>() {
+            Ok(x) => int_number = x,
+            Err(_) => return false,
+        }
+
+        if int_number <= top && int_number >= bottom {
+            return true;
+        }
+        false
     }
 
     fn parse(&mut self, file_path: &str) -> Result<HashMap<String, String>, String> {
@@ -55,20 +68,34 @@ impl Configuration {
             info!("Loaded log file : {}", self.logfile);
         }
         if let Some(port_) = map.get("port") {
-            self.port = port_.parse().unwrap();
-            match port_.parse() {
+            if !self.check_number_between(port_, 0, 65536) {
+                return Err("Unvalid port".to_string());
+            }
+            match port_.parse::<u16>() {
                 Ok(port) => {
                     self.port = port;
                 }
                 Err(_) => {
-                    error!("Error while parsing port from config file");
-                    return Err("Error while parsing port from config file".into());
+                    error!("Error while parsing ip from config file");
+                    return Err("Error while parsing ip from config file".into());
                 }
             }
         }
-        if let Some(dumpfile_) = map.get("dumpfile") {
-            self.dumpfile = dumpfile_.to_string();
-            info!("Uploaded archive configuration : {}", self.dumpfile);
+        if let Some(ip_) = map.get("ip") {
+            self.ip = ip_.to_string();
+        }
+        if let Some(password_) = map.get("password") {
+            match password_.parse::<u32>() {
+                Ok(pass) => {
+                    if pass == 0{
+                        self.password = false
+                    }
+                }
+                Err(_) => {
+                    error!("Error while parsing password from config file");
+                    return Err("Error while parsing password from config file".into());
+                }
+            }
         }
         Ok(())
     }
