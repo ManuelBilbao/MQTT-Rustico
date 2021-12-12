@@ -377,8 +377,8 @@
                 <property name="can-focus">True</property>
               </object>
               <packing>
-                <property name="x">870</property>
-                <property name="y">457</property>
+                <property name="x">858</property>
+                <property name="y">493</property>
               </packing>
             </child>
             <child>
@@ -390,8 +390,8 @@
                 <property name="label" translatable="yes">QOS 0</property>
               </object>
               <packing>
-                <property name="x">858</property>
-                <property name="y">411</property>
+                <property name="x">849</property>
+                <property name="y">446</property>
               </packing>
             </child>
             <child>
@@ -406,8 +406,23 @@
                 </attributes>
               </object>
               <packing>
-                <property name="x">910</property>
-                <property name="y">410</property>
+                <property name="x">899</property>
+                <property name="y">445</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkCheckButton" id="will_retained_check">
+                <property name="label" translatable="yes">Retained</property>
+                <property name="width-request">112</property>
+                <property name="height-request">80</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="draw-indicator">True</property>
+              </object>
+              <packing>
+                <property name="x">858</property>
+                <property name="y">397</property>
               </packing>
             </child>
           </object>

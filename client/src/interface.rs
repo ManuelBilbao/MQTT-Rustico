@@ -45,13 +45,16 @@ fn build_connection_ui(app: &gtk::Application) {
     let port_label: gtk::Label = connect_builder.object("port_label").unwrap();
     let disconnect_button: gtk::Button = connect_builder.object("disconnect_button").unwrap();
     let qos_will_switch: gtk::Switch = connect_builder.object("QOS_will_switch").unwrap();
+    let will_retained_check: gtk::ToggleButton =
+        connect_builder.object("will_retained_check").unwrap();
+
     disconnect_button.hide();
     let app_destroy_clone = app.clone();
     connect_window.connect_destroy(move |_w| {
         app_destroy_clone.quit();
     });
     let app_clone = app.clone();
-    connect_button.connect_clicked(clone!(@weak qos_will_switch, @weak disconnect_button, @weak connect_button, @weak ip_entry, @weak port_entry, @weak client_id_entry, @weak username_entry, @weak password_entry, @weak will_message_entry, @weak will_topic_entry, @weak client_id_label, @weak user_pass_label, @weak connection_label, @weak ip_label, @weak port_label, @weak clean_session_check => move |_|{
+    connect_button.connect_clicked(clone!(@weak will_retained_check, @weak qos_will_switch, @weak disconnect_button, @weak connect_button, @weak ip_entry, @weak port_entry, @weak client_id_entry, @weak username_entry, @weak password_entry, @weak will_message_entry, @weak will_topic_entry, @weak client_id_label, @weak user_pass_label, @weak connection_label, @weak ip_label, @weak port_label, @weak clean_session_check => move |_|{
         let ip = ip_entry.text();
         let port = port_entry.text();
         let client_id = client_id_entry.text();
@@ -64,6 +67,7 @@ fn build_connection_ui(app: &gtk::Application) {
         if qos_will_switch.is_active(){
             will_qos = 1;
         }
+        let will_retain = will_retained_check.is_active();
 
         if client_id.len() != 0 && user_and_password_correct(username.as_str(), password.as_str()) && ip.len() != 0 && port.len() != 0{
             client_id_label.set_text("");
@@ -88,7 +92,7 @@ fn build_connection_ui(app: &gtk::Application) {
             let flags = FlagsConexion {
                 username: username.len() > 0 ,
                 password: password.len() > 0,
-                will_retain: false,
+                will_retain,
                 will_flag: will_topic.len() > 0,
                 clean_session,
             };
