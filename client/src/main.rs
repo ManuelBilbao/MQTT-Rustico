@@ -59,6 +59,7 @@ fn client_run(
     connack_sender: Sender<String>,
     puback_sender: Sender<String>,
     message_sender: Sender<String>,
+    topic_update_sender: Sender<String>,
 ) -> std::io::Result<()> {
     let keep_alive: u16 = 100;
     send_packet_connection(&mut stream, flags, user_information);
@@ -89,6 +90,7 @@ fn client_run(
                         puback_sender.clone(),
                         message_sender.clone(),
                         connack_sender.clone(),
+                        topic_update_sender.clone(),
                     )
                     .unwrap();
                 }

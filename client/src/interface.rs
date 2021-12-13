@@ -108,6 +108,8 @@ fn build_connection_ui(app: &gtk::Application) {
                     mpsc::channel();
                     let (connack_sender, connack_receiver): (Sender<String>, Receiver<String>) =
                     mpsc::channel();
+                    let (topic_update_sender, topic_update_receiver): (Sender<String>, Receiver<String>) =
+                    mpsc::channel();
                     let mut connack_window = ReceiverWindow::new().unwrap();
                     let (con_sender, con_receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
                     connack_window.build(&connect_builder, con_receiver, "connection_succ_label");
@@ -120,11 +122,11 @@ fn build_connection_ui(app: &gtk::Application) {
                         app_clone_2.quit();
                     });
                     thread::spawn(move| |{
-                        client_run(stream_clone, user, flags, connack_sender, puback_sender, message_sender).unwrap();
+                        client_run(stream_clone, user, flags, connack_sender, puback_sender, message_sender, topic_update_sender).unwrap();
                     });
 
                     build_publish_ui(&mut stream, client_id.to_string(), puback_receiver, &connect_builder);
-                    build_subscription_ui(&mut stream, message_receiver, &connect_builder);
+                    build_subscription_ui(&mut stream, message_receiver, topic_update_receiver, &connect_builder);
                     connect_button.hide();
                     disconnect_button.show();
                     ip_entry.set_properties(&[("can-focus", &false)]).unwrap();

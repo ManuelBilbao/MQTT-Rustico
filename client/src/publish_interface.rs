@@ -57,6 +57,21 @@ impl ReceiverWindow {
         });
     }
 
+    pub fn update_subs_upon_publish(
+        &self,
+        glib_receiver: glib::Receiver<String>,
+        label: gtk::Label,
+    ) {
+        glib_receiver.attach(None, move |text: String| {
+            let topic_compare = "\n".to_string() + &text + "\n";
+            if label.text().matches(&topic_compare).count() == 0 {
+                let text = label.text().to_string() + &text + "\n";
+                label.set_text(text.as_str());
+            }
+            glib::Continue(true)
+        });
+    }
+
     pub fn start(&mut self, glib_sender: glib::Sender<String>, receiver: Receiver<String>) {
         thread::spawn(move || loop {
             let text = receiver.recv();

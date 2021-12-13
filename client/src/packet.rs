@@ -71,6 +71,7 @@ pub fn read_packet(
     puback_sender: Sender<String>,
     message_sender: Sender<String>,
     connack_sender: Sender<String>,
+    topic_update_sender: Sender<String>,
 ) -> Result<(), std::io::Error> {
     let mut buffer_paquete: Vec<u8> = vec![0; buffer_size];
     let mut stream_clone = stream.try_clone().unwrap();
