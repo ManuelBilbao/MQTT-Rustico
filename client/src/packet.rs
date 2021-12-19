@@ -187,7 +187,7 @@ pub fn read_publish(
             println!("Error processing topic");
         }
     }
-    if (byte_0 | 0x02) == 2 {
+    if (byte_0 & 0x02) == 2 {
         let mut packet_identifier = [0u8; 2];
         packet_identifier[0] = buffer[topic_name_len + 2];
         packet_identifier[1] = buffer[topic_name_len + 3];
