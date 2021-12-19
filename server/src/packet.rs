@@ -313,8 +313,8 @@ fn make_publication(
     byte_0: u8,
 ) -> Result<[u8; 2], String> {
     let topic_size: usize = ((buffer_packet[0] as usize) << 8) + buffer_packet[1] as usize;
+    let mut packet_identifier = [0u8; 2];
     if(byte_0 | 0x02) == 2 {
-        let mut packet_identifier = [0u8; 2];
         packet_identifier[0] = buffer_packet[topic_size + 2];
         packet_identifier[1] = buffer_packet[topic_size + 3];
     }
