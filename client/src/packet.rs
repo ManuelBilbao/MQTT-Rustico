@@ -1,5 +1,7 @@
 use crate::utils::remaining_length_encode;
-use crate::{calculate_connection_length, create_byte_with_flags, FlagsConexion, UserInformation};
+use crate::{
+    calculate_connection_length, create_byte_with_flags, FlagsConnection, UserInformation,
+};
 use rand::Rng;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -7,6 +9,8 @@ use std::sync::mpsc::Sender;
 
 const MQTT_VERSION: u8 = 4;
 
+/// All possible packet types
+///
 pub enum Packet {
     Connect,
     ConnAck,
@@ -63,7 +67,8 @@ impl From<Packet> for u8 {
         }
     }
 }
-
+/// Detects the packet type with byte_0 and reads whole packet accordingly.
+///
 pub fn read_packet(
     stream: &mut TcpStream,
     byte_0: u8,
@@ -83,14 +88,23 @@ pub fn read_packet(
         Packet::SubAck => read_suback(buffer_paquete),
         Packet::UnsubAck => read_unsuback(buffer_paquete),
         Packet::PingResp => read_pingresp(),
-        Packet::Publish => read_publish(byte_0, buffer_paquete, &mut stream_clone, message_sender),
+        Packet::Publish => read_publish(
+            byte_0,
+            buffer_paquete,
+            &mut stream_clone,
+            message_sender,
+            topic_update_sender,
+        ),
         _ => {
             // Manejar
-            println!("No se que paqeute es");
+            println!("Unknown packet received");
         }
     }
     Ok(())
 }
+
+/// Reads connack packet that contains session_present and return_code then informs the UI that the connection was successfull.
+///
 pub fn read_connack(buffer: Vec<u8>, connack_sender: Sender<String>) {
     let session_present = buffer[0];
     let return_code = buffer[1];
@@ -100,16 +114,18 @@ pub fn read_connack(buffer: Vec<u8>, connack_sender: Sender<String>) {
     );
     connack_sender
         .send("Connected successfully\n".to_string())
-        .expect("Error al mandar texto al gui");
+        .expect("Error when sending text to UI");
 }
-
+/// Reads puback packet that contains packet_identifier then informs UI that the publish was successfull.
+///
 pub fn read_puback(buffer: Vec<u8>, puback_sender: Sender<String>) {
     let _packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
     puback_sender
         .send("Publish sent successfully\n".to_string())
-        .expect("Error al mandar texto al gui");
+        .expect("Error When sending text to UI");
 }
-
+/// Reads suback packet that contains packet_identifier and list of return codes that specify the maximum QoS level that was granted for each subscription.
+///
 pub fn read_suback(buffer: Vec<u8>) {
     let _packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
     let amount_of_topics = buffer.len() - 2;
@@ -118,7 +134,8 @@ pub fn read_suback(buffer: Vec<u8>) {
         topic_results.push(buffer[i + 2]);
     }
 }
-
+/// Reads unsuback packet that contains packet_identifier.
+///
 pub fn read_unsuback(buffer: Vec<u8>) {
     let packet_identifier = ((buffer[0] as u16) << 8) + buffer[1] as u16;
     println!(
@@ -126,20 +143,28 @@ pub fn read_unsuback(buffer: Vec<u8>) {
         packet_identifier
     );
 }
-
+/// Does nothing as pingresp only has a fixed header tha was already read.
+///
 pub fn read_pingresp() {
-    // PingResp viene vacio
-    // TODO: Do something
+    // PingResp is empty
 }
+/// Reads publish packet that contains a topic and a message, and then sends these to the UI. The topic is also sent to the UI through topic_update_sender to
+/// update the subscribed topics label, in case the client receives a message with a topic to which the client had subscribed to in a previous session.
+/// If QoS is 1 then a puback packet is also sent to the server.
+///
 pub fn read_publish(
     byte_0: u8,
     buffer: Vec<u8>,
     stream: &mut TcpStream,
     message_sender: Sender<String>,
+    topic_update_sender: Sender<String>,
 ) {
     let topic_name_len: usize = ((buffer[0] as usize) << 8) + buffer[1] as usize;
     match bytes2string(&buffer[2..(2 + topic_name_len)]) {
         Ok(mut topic_name) => {
+            topic_update_sender
+                .send(topic_name.clone())
+                .expect("Error when sending text to UI");
             topic_name += " - ";
             let mut sum_index: usize = 2;
             if (byte_0 & 0x02) == 2 {
@@ -151,15 +176,15 @@ pub fn read_publish(
                     let topic_and_message = topic_name + &message;
                     message_sender
                         .send(topic_and_message)
-                        .expect("Error al mandar texto al gui");
+                        .expect("Error when sending text to UI");
                 }
                 Err(_) => {
-                    println!("Error procesando mensaje");
+                    println!("Error processing message");
                 }
             }
         }
         Err(_) => {
-            println!("Error procesando topico");
+            println!("Error processing topic");
         }
     }
     if (byte_0 | 0x02) == 2 {
@@ -179,7 +204,7 @@ pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
 
 pub fn send_packet_connection(
     stream: &mut TcpStream,
-    flags: FlagsConexion,
+    flags: FlagsConnection,
     user_information: UserInformation,
 ) {
     let buffer_size = calculate_connection_length(&flags, &user_information);

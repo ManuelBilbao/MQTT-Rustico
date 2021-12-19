@@ -23,15 +23,15 @@ use crate::utils::remaining_length_read;
 mod utils;
 
 /*static CLIENT_ARGS: usize = 3;*/
-
-pub struct FlagsConexion {
+/// Flags required for client connection
+pub struct FlagsConnection {
     username: bool,
     password: bool,
     will_retain: bool,
     will_flag: bool,
     clean_session: bool,
 }
-
+///Information about the client
 pub struct UserInformation {
     id_length: u16,
     id: String,
@@ -51,11 +51,11 @@ fn main() -> Result<(), ()> {
     run_connection_window();
     Ok(())
 }
-
+/// Runs client that will read first 2 bytes from stream and then call read_packet
 fn client_run(
     mut stream: TcpStream,
     user_information: UserInformation,
-    flags: FlagsConexion,
+    flags: FlagsConnection,
     connack_sender: Sender<String>,
     puback_sender: Sender<String>,
     message_sender: Sender<String>,
@@ -107,7 +107,7 @@ fn client_run(
     Ok(())
 }
 
-fn create_byte_with_flags(flags: &FlagsConexion, will_qos: &u8) -> u8 {
+fn create_byte_with_flags(flags: &FlagsConnection, will_qos: &u8) -> u8 {
     let mut byte_flags: u8 = 0;
     if flags.username {
         byte_flags |= 0x80;
@@ -128,7 +128,10 @@ fn create_byte_with_flags(flags: &FlagsConexion, will_qos: &u8) -> u8 {
     byte_flags
 }
 
-fn calculate_connection_length(flags: &FlagsConexion, user_information: &UserInformation) -> usize {
+fn calculate_connection_length(
+    flags: &FlagsConnection,
+    user_information: &UserInformation,
+) -> usize {
     let mut lenght: usize = 12;
     lenght += user_information.id_length as usize;
     if flags.username {

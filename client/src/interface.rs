@@ -3,20 +3,23 @@ extern crate gtk;
 use self::gtk::atk::glib::clone;
 use crate::packet::_send_disconnect_packet;
 use crate::publish_interface::build_publish_ui;
-use crate::publish_interface::ReceiverWindow;
+use crate::publish_interface::ReceiverObject;
 use crate::subscription_interface::build_subscription_ui;
-use crate::{client_run, FlagsConexion, UserInformation};
+use crate::{client_run, FlagsConnection, UserInformation};
 use gtk::prelude::*;
+use rand::Rng;
 use std::net::TcpStream;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
 pub fn run_connection_window() {
-    let application = gtk::Application::new(Some("taller.Fra2ManEze"), Default::default());
+    let mut rng = rand::thread_rng();
+    let name_id: u16 = rng.gen();
+    let name = "taller.Fra2ManEze".to_string() + &name_id.to_string();
+    let application = gtk::Application::new(Some(&name), Default::default());
 
     application.connect_activate(|app| {
-        let _window = gtk::ApplicationWindow::new(app);
         build_connection_ui(app);
     });
     application.run();
@@ -26,131 +29,108 @@ fn build_connection_ui(app: &gtk::Application) {
     let connect_glade_src = include_str!("interface.glade");
     let connect_builder = gtk::Builder::from_string(connect_glade_src);
 
-    let connect_window: gtk::Window = connect_builder.object("app_window").unwrap();
+    let connect_window: gtk::Window = connect_builder
+        .object("app_window")
+        .expect("Error when getting window from glade");
     connect_window.set_application(Some(app));
-    let ip_entry: gtk::Entry = connect_builder.object("ip_entry").unwrap();
-    let port_entry: gtk::Entry = connect_builder.object("port_entry").unwrap();
-    let client_id_entry: gtk::Entry = connect_builder.object("client_id_entry").unwrap();
-    let clean_session_check: gtk::ToggleButton =
-        connect_builder.object("clean_session_check").unwrap();
-    let username_entry: gtk::Entry = connect_builder.object("username_entry").unwrap();
-    let password_entry: gtk::Entry = connect_builder.object("password_entry").unwrap();
-    let will_message_entry: gtk::Entry = connect_builder.object("will_message_entry").unwrap();
-    let will_topic_entry: gtk::Entry = connect_builder.object("will_topic_entry").unwrap();
-    let connect_button: gtk::Button = connect_builder.object("connect_button").unwrap();
-    let client_id_label: gtk::Label = connect_builder.object("client_id_label").unwrap();
-    let user_pass_label: gtk::Label = connect_builder.object("user_pass_label").unwrap();
-    let connection_label: gtk::Label = connect_builder.object("connection_label").unwrap();
-    let ip_label: gtk::Label = connect_builder.object("ip_label").unwrap();
-    let port_label: gtk::Label = connect_builder.object("port_label").unwrap();
-    let disconnect_button: gtk::Button = connect_builder.object("disconnect_button").unwrap();
-    let qos_will_switch: gtk::Switch = connect_builder.object("QOS_will_switch").unwrap();
-    let will_retained_check: gtk::ToggleButton =
-        connect_builder.object("will_retained_check").unwrap();
 
-    disconnect_button.hide();
     let app_destroy_clone = app.clone();
     connect_window.connect_destroy(move |_w| {
         app_destroy_clone.quit();
     });
-    let app_clone = app.clone();
-    connect_button.connect_clicked(clone!(@weak will_retained_check, @weak qos_will_switch, @weak disconnect_button, @weak connect_button, @weak ip_entry, @weak port_entry, @weak client_id_entry, @weak username_entry, @weak password_entry, @weak will_message_entry, @weak will_topic_entry, @weak client_id_label, @weak user_pass_label, @weak connection_label, @weak ip_label, @weak port_label, @weak clean_session_check => move |_|{
-        let ip = ip_entry.text();
-        let port = port_entry.text();
-        let client_id = client_id_entry.text();
-        let clean_session = clean_session_check.is_active();
-        let username = username_entry.text();
-        let password = password_entry.text();
-        let will_message = will_message_entry.text();
-        let will_topic = will_topic_entry.text();
-        let mut will_qos:u8 = 0;
-        if qos_will_switch.is_active(){
-            will_qos = 1;
-        }
-        let will_retain = will_retained_check.is_active();
-
-        if client_id.len() != 0 && user_and_password_correct(username.as_str(), password.as_str()) && ip.len() != 0 && port.len() != 0{
-            client_id_label.set_text("");
-            user_pass_label.set_text("");
-            ip_label.set_text("");
-            port_label.set_text("");
-            let address = ip.to_string() + ":" + &port;
-            let user = UserInformation {
-                id_length: client_id.len() as u16,
-                id: client_id.to_string(),
-                username_length: username.len() as u16,
-                username: Some(username.to_string()),
-                password_length: password.len() as u16,
-                password: Some(password.to_string()),
-                will_topic_length: will_topic.len() as u16,
-                will_topic: Some(will_topic.to_string()),
-                will_message_length: will_message.len() as u16,
-                will_message: Some(will_message.to_string()),
-                will_qos,
-                keep_alive: 0,
-            };
-            let flags = FlagsConexion {
-                username: username.len() > 0 ,
-                password: password.len() > 0,
-                will_retain,
-                will_flag: will_topic.len() > 0,
-                clean_session,
-            };
-            match TcpStream::connect(&address){
-                Ok(tcpstream) => {
-                    connection_label.set_text("");
-                    println!("Connecting to... {:?}", &address);
-                    let mut stream = tcpstream;
-                    let stream_clone = stream.try_clone().unwrap();
-                    let (puback_sender, puback_receiver): (Sender<String>, Receiver<String>) =
-                    mpsc::channel();
-                    let (message_sender, message_receiver): (Sender<String>, Receiver<String>) =
-                    mpsc::channel();
-                    let (connack_sender, connack_receiver): (Sender<String>, Receiver<String>) =
-                    mpsc::channel();
-                    let (topic_update_sender, topic_update_receiver): (Sender<String>, Receiver<String>) =
-                    mpsc::channel();
-                    let mut connack_window = ReceiverWindow::new().unwrap();
-                    let (con_sender, con_receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-                    connack_window.build(&connect_builder, con_receiver, "connection_succ_label");
-                    connack_window.start(con_sender, connack_receiver);
-                    let app_clone_2 = app_clone.clone();
-                    let  stream_clone_2 = stream_clone.try_clone().expect("Cannot clone stream");
-                    disconnect_button.connect_clicked(move |_| {
-                        let mut stream_clone3 = stream_clone_2.try_clone().expect("Cannot clone stream");
-                        _send_disconnect_packet(&mut stream_clone3);
-                        app_clone_2.quit();
-                    });
-                    thread::spawn(move| |{
-                        client_run(stream_clone, user, flags, connack_sender, puback_sender, message_sender, topic_update_sender).unwrap();
-                    });
-
-                    build_publish_ui(&mut stream, client_id.to_string(), puback_receiver, &connect_builder);
-                    build_subscription_ui(&mut stream, message_receiver, topic_update_receiver, &connect_builder);
-                    connect_button.hide();
-                    disconnect_button.show();
-                    ip_entry.set_properties(&[("can-focus", &false)]).unwrap();
-                    port_entry.set_properties(&[("can-focus", &false)]).unwrap();
-                    client_id_entry.set_properties(&[("can-focus", &false)]).unwrap();
-                    username_entry.set_properties(&[("can-focus", &false)]).unwrap();
-                    password_entry.set_properties(&[("can-focus", &false)]).unwrap();
-                    will_message_entry.set_properties(&[("can-focus", &false)]).unwrap();
-                    will_topic_entry.set_properties(&[("can-focus", &false)]).unwrap();
-                }
-                Err(_) => {connection_label.set_text("Connection failed");}
-            }
-        }
-        else{
-            check_if_not_empty(client_id.len() == 0, client_id_label, "Client ID is required");
-            check_if_not_empty(!user_and_password_correct(username.as_str(), password.as_str()), user_pass_label, "Invalid username or password");
-            check_if_not_empty(ip.len() == 0, ip_label, "IP is required");
-            check_if_not_empty(port.len() == 0, port_label, "Port is required");
-        }
-    }));
-
+    run_connection(app, connect_builder);
     connect_window.show();
 }
 
+fn disconnect_on_click(
+    app: &gtk::Application,
+    stream: &mut TcpStream,
+    disconnect_button: &gtk::Button,
+) {
+    let app_clone = app.clone();
+    let stream_clone = stream.try_clone().expect("Cannot clone stream");
+    disconnect_button.connect_clicked(move |_| {
+        let mut stream_clone_2 = stream_clone.try_clone().expect("Cannot clone stream");
+        _send_disconnect_packet(&mut stream_clone_2);
+        app_clone.quit();
+    });
+}
+
+fn run_client_and_build_windows(
+    mut stream: TcpStream,
+    app: &gtk::Application,
+    disconnect_button: &gtk::Button,
+    connect_builder: &gtk::Builder,
+    user: UserInformation,
+    flags: FlagsConnection,
+) {
+    let stream_clone = stream.try_clone().expect("Error when cloning stream");
+    let (puback_sender, puback_receiver): (Sender<String>, Receiver<String>) = mpsc::channel();
+    let (message_sender, message_receiver): (Sender<String>, Receiver<String>) = mpsc::channel();
+    let (connack_sender, connack_receiver): (Sender<String>, Receiver<String>) = mpsc::channel();
+    let (topic_update_sender, topic_update_receiver): (Sender<String>, Receiver<String>) =
+        mpsc::channel();
+    let mut connack_obj = ReceiverObject::new().expect("Error when creating ReceiverObject");
+    let (con_sender, con_receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    connack_obj.build(connect_builder, con_receiver, "connection_succ_label");
+    connack_obj.start(con_sender, connack_receiver);
+    disconnect_on_click(app, &mut stream, disconnect_button);
+    thread::spawn(move || {
+        client_run(
+            stream_clone,
+            user,
+            flags,
+            connack_sender,
+            puback_sender,
+            message_sender,
+            topic_update_sender,
+        )
+        .expect("Error when running client");
+    });
+    build_publish_ui(&mut stream, puback_receiver, connect_builder);
+    build_subscription_ui(
+        &mut stream,
+        message_receiver,
+        topic_update_receiver,
+        connect_builder,
+    );
+}
+
+fn connect_and_run_client(
+    address: &str,
+    app: &gtk::Application,
+    disconnect_button: gtk::Button,
+    connect_button: gtk::Button,
+    user: UserInformation,
+    flags: FlagsConnection,
+    connect_builder: &gtk::Builder,
+) -> bool {
+    let connection_label: gtk::Label = connect_builder
+        .object("connection_label")
+        .expect("Error when getting object from glade");
+    match TcpStream::connect(&address) {
+        Ok(tcpstream) => {
+            connection_label.set_text("");
+            println!("Connecting to... {:?}", &address);
+            run_client_and_build_windows(
+                tcpstream,
+                app,
+                &disconnect_button,
+                connect_builder,
+                user,
+                flags,
+            );
+
+            connect_button.hide();
+            disconnect_button.show();
+            true
+        }
+        Err(_) => {
+            connection_label.set_text("Connection failed");
+            false
+        }
+    }
+}
 fn check_if_not_empty(condition: bool, label: gtk::Label, error: &str) {
     if condition {
         label.set_text(error);
@@ -159,23 +139,258 @@ fn check_if_not_empty(condition: bool, label: gtk::Label, error: &str) {
     }
 }
 
-fn user_and_password_correct(user: &str, password: &str) -> bool {
-    let file: String = match std::fs::read_to_string("../server/src/users.txt") {
-        Ok(file) => file,
-        Err(_) => return false,
-    };
-    let lines = file.lines();
-
-    for line in lines {
-        let name_and_pass: Vec<&str> = line.split('=').collect();
-        let username: String = name_and_pass[0].to_string();
-        let pass: String = name_and_pass[1].to_string();
-        if username == user {
-            if pass == password {
-                return true;
-            }
-            return false;
-        }
+fn initialize_userinformation(
+    client_id_entry: &gtk::Entry,
+    username_entry: &gtk::Entry,
+    password_entry: &gtk::Entry,
+    will_topic_entry: &gtk::Entry,
+    will_message_entry: &gtk::Entry,
+    qos_will_switch: &gtk::Switch,
+) -> UserInformation {
+    UserInformation {
+        id_length: client_id_entry.text().len() as u16,
+        id: client_id_entry.text().to_string(),
+        username_length: username_entry.text().len() as u16,
+        username: Some(username_entry.text().to_string()),
+        password_length: password_entry.text().len() as u16,
+        password: Some(password_entry.text().to_string()),
+        will_topic_length: will_topic_entry.text().len() as u16,
+        will_topic: Some(will_topic_entry.text().to_string()),
+        will_message_length: will_message_entry.text().len() as u16,
+        will_message: Some(will_message_entry.text().to_string()),
+        will_qos: qos_will_switch.is_active() as u8,
+        keep_alive: 0,
     }
-    false
+}
+
+fn initialize_flags(
+    username_entry: &gtk::Entry,
+    password_entry: &gtk::Entry,
+    will_retain_check: &gtk::ToggleButton,
+    will_topic_entry: &gtk::Entry,
+    clean_session_check: &gtk::ToggleButton,
+) -> FlagsConnection {
+    FlagsConnection {
+        username: username_entry.text().len() > 0,
+        password: password_entry.text().len() > 0,
+        will_retain: will_retain_check.is_active(),
+        will_flag: will_topic_entry.text().len() > 0,
+        clean_session: clean_session_check.is_active(),
+    }
+}
+
+fn set_properties(
+    ip_entry: &gtk::Entry,
+    port_entry: &gtk::Entry,
+    client_id_entry: &gtk::Entry,
+    username_entry: &gtk::Entry,
+    password_entry: &gtk::Entry,
+    will_message_entry: &gtk::Entry,
+    will_topic_entry: &gtk::Entry,
+) {
+    ip_entry
+        .set_properties(&[("can-focus", &false)])
+        .expect("Error when setting properties");
+    port_entry
+        .set_properties(&[("can-focus", &false)])
+        .expect("Error when setting properties");
+    client_id_entry
+        .set_properties(&[("can-focus", &false)])
+        .expect("Error when setting properties");
+    username_entry
+        .set_properties(&[("can-focus", &false)])
+        .expect("Error when setting properties");
+    password_entry
+        .set_properties(&[("can-focus", &false)])
+        .expect("Error when setting properties");
+    will_message_entry
+        .set_properties(&[("can-focus", &false)])
+        .expect("Error when setting properties");
+    will_topic_entry
+        .set_properties(&[("can-focus", &false)])
+        .expect("Error when setting properties");
+}
+fn get_info_objects(
+    connect_builder: &gtk::Builder,
+) -> (
+    gtk::Entry,
+    gtk::Entry,
+    gtk::Entry,
+    gtk::Entry,
+    gtk::Switch,
+    gtk::ToggleButton,
+    gtk::ToggleButton,
+) {
+    let username_entry: gtk::Entry = connect_builder
+        .object("username_entry")
+        .expect("Error when getting object from glade");
+    let password_entry: gtk::Entry = connect_builder
+        .object("password_entry")
+        .expect("Error when getting object from glade");
+    let will_message_entry: gtk::Entry = connect_builder
+        .object("will_message_entry")
+        .expect("Error when getting object from glade");
+    let will_topic_entry: gtk::Entry = connect_builder
+        .object("will_topic_entry")
+        .expect("Error when getting object from glade");
+    let qos_will_switch: gtk::Switch = connect_builder
+        .object("QOS_will_switch")
+        .expect("Error when getting object from glade");
+    let will_retained_check: gtk::ToggleButton = connect_builder
+        .object("will_retained_check")
+        .expect("Error when getting object from glade");
+    let clean_session_check: gtk::ToggleButton = connect_builder
+        .object("clean_session_check")
+        .expect("Error when getting object from glade");
+
+    (
+        username_entry,
+        password_entry,
+        will_message_entry,
+        will_topic_entry,
+        qos_will_switch,
+        will_retained_check,
+        clean_session_check,
+    )
+}
+
+fn get_info_and_flags(
+    entries: &(gtk::Entry, gtk::Entry, gtk::Entry),
+    connect_builder: &gtk::Builder,
+) -> (UserInformation, FlagsConnection) {
+    let info_objects = get_info_objects(connect_builder);
+    let user = initialize_userinformation(
+        &entries.2,
+        &info_objects.0,
+        &info_objects.1,
+        &info_objects.3,
+        &info_objects.2,
+        &info_objects.4,
+    );
+    let flags = initialize_flags(
+        &info_objects.0,
+        &info_objects.1,
+        &info_objects.5,
+        &info_objects.3,
+        &info_objects.6,
+    );
+    (user, flags)
+}
+
+fn try_connection(
+    address: String,
+    app: &gtk::Application,
+    disconnect_button: gtk::Button,
+    connect_button: gtk::Button,
+    connect_builder: &gtk::Builder,
+    entries: (gtk::Entry, gtk::Entry, gtk::Entry),
+) {
+    let info_flags = get_info_and_flags(&entries, connect_builder);
+    if connect_and_run_client(
+        &address,
+        app,
+        disconnect_button,
+        connect_button,
+        info_flags.0,
+        info_flags.1,
+        connect_builder,
+    ) {
+        let info_objects = get_info_objects(connect_builder);
+        set_properties(
+            &entries.0,
+            &entries.1,
+            &entries.2,
+            &info_objects.0,
+            &info_objects.1,
+            &info_objects.2,
+            &info_objects.3,
+        );
+    }
+}
+
+fn initialize_client_and_connect(
+    connect_builder: &gtk::Builder,
+    app: &gtk::Application,
+    disconnect_button: gtk::Button,
+    connect_button: gtk::Button,
+    ip_entry: gtk::Entry,
+    port_entry: gtk::Entry,
+    client_id_entry: gtk::Entry,
+) {
+    let ip_label: gtk::Label = connect_builder
+        .object("ip_label")
+        .expect("Error when getting object from glade");
+    let port_label: gtk::Label = connect_builder
+        .object("port_label")
+        .expect("Error when getting object from glade");
+    let client_id_label: gtk::Label = connect_builder
+        .object("client_id_label")
+        .expect("Error when getting object from glade");
+    if client_id_entry.text().len() != 0
+        && ip_entry.text().len() != 0
+        && port_entry.text().len() != 0
+    {
+        client_id_label.set_text("");
+        ip_label.set_text("");
+        port_label.set_text("");
+        let address = ip_entry.text().to_string() + ":" + &port_entry.text();
+        try_connection(
+            address,
+            app,
+            disconnect_button,
+            connect_button,
+            connect_builder,
+            (ip_entry, port_entry, client_id_entry),
+        );
+    } else {
+        check_if_not_empty(
+            client_id_entry.text().len() == 0,
+            client_id_label,
+            "Client ID is required",
+        );
+        check_if_not_empty(ip_entry.text().len() == 0, ip_label, "IP is required");
+        check_if_not_empty(port_entry.text().len() == 0, port_label, "Port is required");
+    }
+}
+
+fn get_objects_and_connect(
+    connect_builder: &gtk::Builder,
+    app: &gtk::Application,
+    disconnect_button: gtk::Button,
+    connect_button: gtk::Button,
+) {
+    let ip_entry: gtk::Entry = connect_builder
+        .object("ip_entry")
+        .expect("Error when getting object from glade");
+    let port_entry: gtk::Entry = connect_builder
+        .object("port_entry")
+        .expect("Error when getting object from glade");
+    let client_id_entry: gtk::Entry = connect_builder
+        .object("client_id_entry")
+        .expect("Error when getting object from glade");
+
+    initialize_client_and_connect(
+        connect_builder,
+        app,
+        disconnect_button,
+        connect_button,
+        ip_entry,
+        port_entry,
+        client_id_entry,
+    );
+}
+
+fn run_connection(app: &gtk::Application, connect_builder: gtk::Builder) {
+    let disconnect_button: gtk::Button = connect_builder
+        .object("disconnect_button")
+        .expect("Error when getting object from glade");
+    let connect_button: gtk::Button = connect_builder
+        .object("connect_button")
+        .expect("Error when getting object from glade");
+    disconnect_button.hide();
+
+    let app_clone = app.clone();
+    connect_button.connect_clicked(clone!(@weak disconnect_button, @weak connect_button => move |_|{
+        get_objects_and_connect(&connect_builder, &app_clone, disconnect_button, connect_button);
+    }));
 }
