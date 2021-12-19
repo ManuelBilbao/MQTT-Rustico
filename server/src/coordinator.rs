@@ -336,6 +336,7 @@ fn send_publish_to_customer(
     topic_name: &str,
 ) -> Vec<u8> {
     let publish_qos = packet.bytes[0] & 0x02;
+    println!("{}", &publish_qos);
     packet.bytes.remove(0);
     let byte_publish: u8 = Packet::Publish.into();
     let byte_0: u8 = byte_publish | publish_qos;

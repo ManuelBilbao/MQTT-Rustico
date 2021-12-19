@@ -142,7 +142,7 @@ pub fn read_publish(
         Ok(mut topic_name) => {
             topic_name += " - ";
             let mut sum_index: usize = 2;
-            if (byte_0 | 0x02) == 2 {
+            if (byte_0 & 0x02) == 2 {
                 sum_index = 4;
             }
             match bytes2string(&buffer[(sum_index + topic_name_len)..buffer.len()]) {
