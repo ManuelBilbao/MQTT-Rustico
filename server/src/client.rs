@@ -67,4 +67,9 @@ impl Client {
         }
         subscribed
     }
+
+    pub fn remove_subscriptions_and_queue(&mut self) {
+        self.topics = Vec::new();
+        self.publishes_received = Vec::new();
+    }
 }

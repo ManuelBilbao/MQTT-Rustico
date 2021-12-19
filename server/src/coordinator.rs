@@ -162,6 +162,9 @@ fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &Pac
                         warn!("Error sending secret packet.")
                     }
                 }
+                if client.clean_session == 1 {
+                    client.remove_subscriptions_and_queue();
+                }
                 client.disconnected = true;
             }
             None => {
@@ -185,6 +188,9 @@ fn close_disgraceful(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: 
                         Err(_) => {
                             warn!("Error sending the message")
                         }
+                    }
+                    if client.clean_session == 1 {
+                        client.remove_subscriptions_and_queue();
                     }
                     client.disconnected = true;
                 }
