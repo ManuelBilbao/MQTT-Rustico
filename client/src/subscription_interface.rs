@@ -62,7 +62,7 @@ pub fn build_subscription_ui(
     topics_updater.update_subs_upon_publish(sub_topic_receiver, subs_lock_3);
     topics_updater.start(sub_topic_sender, topic_update_receiver);
 }
-
+/// Sends subscribe packet and updates label when subscribe button is clicked
 fn subscribe_button_on_click(
     subscribe_button: gtk::Button,
     stream: TcpStream,
@@ -90,7 +90,7 @@ fn subscribe_button_on_click(
         }
     }));
 }
-
+///Sends unsubscribe packet and updates label when unsubscribe button is clicked
 fn unsubscribe_button_on_click(
     unsubscribe_button: gtk::Button,
     stream: TcpStream,

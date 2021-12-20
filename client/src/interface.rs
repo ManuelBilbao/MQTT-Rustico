@@ -12,7 +12,7 @@ use std::net::TcpStream;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
-
+/// Runs the interface where the first window is the connection window
 pub fn run_connection_window() {
     let mut rng = rand::thread_rng();
     let name_id: u16 = rng.gen();
@@ -41,7 +41,7 @@ fn build_connection_ui(app: &gtk::Application) {
     run_connection(app, connect_builder);
     connect_window.show();
 }
-
+/// The disconnect button will send a disconnect packet to the server when clicked.
 fn disconnect_on_click(
     app: &gtk::Application,
     stream: &mut TcpStream,
@@ -55,7 +55,7 @@ fn disconnect_on_click(
         app_clone.quit();
     });
 }
-
+/// Creates mpsc channels to communicate with the client (the client keeps the channel sender), spawns a thread to run the client and builds the publish window and subscription window.
 fn run_client_and_build_windows(
     mut stream: TcpStream,
     app: &gtk::Application,
@@ -379,7 +379,7 @@ fn get_objects_and_connect(
         client_id_entry,
     );
 }
-
+/// When the connect button is clicked, it connects and runs the client and then builds the publish window and subscription window.
 fn run_connection(app: &gtk::Application, connect_builder: gtk::Builder) {
     let disconnect_button: gtk::Button = connect_builder
         .object("disconnect_button")

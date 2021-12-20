@@ -67,7 +67,7 @@ impl From<Packet> for u8 {
         }
     }
 }
-/// Detects the packet type with byte_0 and reads whole packet accordingly.
+/// Receives byte_0 which is used to get the packet type and then reads the rest of the packet. Then it calls a different function for each packet type.
 ///
 pub fn read_packet(
     stream: &mut TcpStream,
@@ -201,7 +201,7 @@ pub fn bytes2string(bytes: &[u8]) -> Result<String, u8> {
         Err(_) => Err(1),
     }
 }
-
+/// Creates the connection packet according to mqtt protocol and then sends it to server
 pub fn send_packet_connection(
     stream: &mut TcpStream,
     flags: FlagsConnection,
@@ -313,7 +313,8 @@ pub fn send_unsubscribe_packet(stream: &mut TcpStream, topics: Vec<String>) {
 
     stream.write_all(&final_buffer).unwrap();
 }
-
+///  Sends a publish packet to the server that contains a topic, a message, a dup flag, a qos flag and a retain flag. If QoS is 1 it also includes a packet identifier.
+///
 pub fn send_publish_packet(
     stream: &mut TcpStream,
     topic: String,

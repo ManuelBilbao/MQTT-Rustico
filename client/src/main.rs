@@ -51,7 +51,7 @@ fn main() -> Result<(), ()> {
     run_connection_window();
     Ok(())
 }
-/// Runs client that will read first 2 bytes from stream and then call read_packet
+/// Runs client that will send pingreqs, read first 2 bytes from stream when a packet is received and then read the rest of the packet with read_packet
 fn client_run(
     mut stream: TcpStream,
     user_information: UserInformation,
@@ -147,7 +147,7 @@ fn calculate_connection_length(
     }
     lenght
 }
-
+/// Disconnects client from server by sending disconnect packet and shutting down streams
 fn disconnect(stream: &mut TcpStream, signal: Arc<AtomicBool>) {
     _send_disconnect_packet(stream);
     stream

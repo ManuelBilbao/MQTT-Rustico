@@ -45,13 +45,14 @@ pub fn build_publish_ui(
     pub_obj.build(connect_builder, pub_receiver, "puback_label");
     pub_obj.start(pub_sender, puback_receiver);
 }
-
+/// Structure that is used to receive text from the client and set it to a label
 pub struct ReceiverObject {}
 
 impl ReceiverObject {
     pub fn new() -> io::Result<Self> {
         Ok(Self {})
     }
+    ///When the glib_receiver receives text, the label's text is updated.
     pub fn build(&self, builder: &gtk::Builder, glib_receiver: glib::Receiver<String>, name: &str) {
         match builder.object::<gtk::Label>(name) {
             Some(label) => {
@@ -71,7 +72,7 @@ impl ReceiverObject {
             }
         }
     }
-
+/// This is used for the topic_updater. When the glib_receiver receives text, the label's text is updated.
     pub fn update_subs_upon_publish(
         &self,
         glib_receiver: glib::Receiver<String>,
@@ -93,7 +94,7 @@ impl ReceiverObject {
             glib::Continue(true)
         });
     }
-
+/// Spawns a thread that will listen for text sent by the client and then send it through the glib channel. This is where the channel receiver created in "run_client_and_build_windows" is used.
     pub fn start(&mut self, glib_sender: glib::Sender<String>, receiver: Receiver<String>) {
         thread::spawn(move || loop {
             match receiver.recv() {
