@@ -9,6 +9,8 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info, warn};
 
+/// Receives messages from the Client Listener and take decisions
+///
 pub fn run_coordinator(
     coordinator_receiver: Receiver<PacketThings>,
     lock_clients: Arc<Mutex<HashMap<usize, Client>>>,
@@ -72,6 +74,8 @@ pub fn run_coordinator(
     }
 }
 
+///
+///
 fn send_lastwill(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &PacketThings,
@@ -150,7 +154,8 @@ fn send_lastwill(
     }
     (buffer_packet, topic_name, topic_message)
 }
-
+/// Set client as disconnect and remove subscripciones if need it.
+///
 fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
     match lock_clients.lock() {
         Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
@@ -176,7 +181,8 @@ fn close_process(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &Pac
         }
     }
 }
-
+/// Set client as disconnect and remove subscripciones if need it.
+///
 fn close_disgraceful(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: &PacketThings) {
     match lock_clients.lock() {
         Ok(mut locked) => match locked.get_mut(&packet.thread_id) {
@@ -234,6 +240,8 @@ fn is_to_retained(packet: &PacketThings) -> bool {
     (packet.bytes[0] & 0x01) == 1
 }
 
+///
+///
 fn process_client_id_and_info(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &mut PacketThings,
@@ -330,6 +338,8 @@ fn send_connection_result(client: &mut Client, result_code: u8, session: u8) {
     };
 }
 
+/// Sends the publish content to Client Communicator
+///
 fn send_publish_to_customer(
     lock_clients: &Arc<Mutex<HashMap<usize, Client>>>,
     packet: &mut PacketThings,
@@ -381,6 +391,7 @@ fn process_publish(packet: &mut PacketThings) -> String {
     let topic_name_len: usize = ((packet.bytes[1] as usize) << 8) + packet.bytes[2] as usize;
     bytes2string(&packet.bytes[3..(3 + topic_name_len)])
 }
+
 
 fn send_unsubback(lock_clients: &Arc<Mutex<HashMap<usize, Client>>>, packet: PacketThings) {
     let buffer: Vec<u8> = vec![

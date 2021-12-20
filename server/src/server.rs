@@ -39,6 +39,8 @@ impl Server {
         Server { cfg: config }
     }
 
+    /// Launchs the main server structures, Coordinator and Stacked messages coordinator and calls the fuctions for connect new clients
+    ///
     pub fn run(&self) -> std::io::Result<()> {
         info!("Log system started");
         let address = self.cfg.get_address();
@@ -67,6 +69,8 @@ impl Server {
         )
     }
 
+    /// Waiting for customers, when one appears, launch a new thread to handle it and keeps in loop waiting more new customers.
+    ///
     fn wait_new_clients(
         address: &str,
         handler_clients_lock: Arc<Mutex<HashMap<usize, Client>>>,
@@ -114,7 +118,8 @@ impl Server {
         }
     }
 }
-
+/// Launchs the Client-Communicator and a function that wait for client messages in a loop.
+///
 pub fn handle_client(
     id: usize,
     stream: &mut TcpStream,
@@ -123,7 +128,7 @@ pub fn handle_client(
     client_receiver: Receiver<Vec<u8>>,
     password_required: bool,
 ) {
-    let stream_cloned = stream.try_clone().unwrap(); // Si no puede clonar, paniqueo para cerrar el thread Client-Listner
+    let stream_cloned = stream.try_clone().unwrap(); // Si no puede clonar, paniqueo para cerrar el thread Client-Listener
     let mut current_client = ClientFlags {
         id,
         client_id: None,
@@ -184,7 +189,8 @@ fn read_packets_from_client(current_client: &mut ClientFlags, password_required:
         }
     }
 }
-
+/// Receive messages from the coordinator and send messages to client
+///
 fn send_packets_to_client(
     client_sender: Arc<Mutex<Sender<PacketThings>>>,
     client_receiver: Receiver<Vec<u8>>,
