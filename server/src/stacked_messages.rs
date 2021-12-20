@@ -1,3 +1,7 @@
+//! # Stacked Messages
+//!
+//! Thread to send messages to client (specifically QoS 1 publish messages) until it returns the _Puback_ packet.
+
 use crate::client::Client;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -5,6 +9,7 @@ use std::thread;
 use std::time::Duration;
 use tracing::{info, warn};
 
+/// Send queued publish messages to client periodically.
 pub fn run_stacked_coordinator(lock_clients: Arc<Mutex<HashMap<usize, Client>>>) {
     loop {
         thread::sleep(Duration::from_secs(1));

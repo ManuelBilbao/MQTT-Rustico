@@ -1,3 +1,6 @@
+//! # Packet
+//!
+//! Different packet management and processing.
 use crate::server::{ClientFlags, PacketThings};
 use std::io::{Read, Write};
 use std::net::Shutdown;
@@ -12,6 +15,7 @@ const CONNECTION_PROTOCOL_REJECTED: u8 = 1;
 const INCORRECT_SERVER_CONNECTION: u8 = 1;
 pub const SUCCESSFUL_CONNECTION: u8 = 0;
 
+/// Type of recognized packets.
 pub enum Packet {
     Connect,
     ConnAck,
@@ -71,6 +75,11 @@ impl From<Packet> for u8 {
     }
 }
 
+/// Read entire packet from stream and execute the function according to type.
+///
+/// # Errors
+///
+/// Returns Error if couldn't read from stream.
 pub fn read_packet(
     client: &mut ClientFlags,
     packet_type: Packet,
@@ -119,6 +128,7 @@ pub fn read_packet(
     Ok(())
 }
 
+/// Inform coordinator that the client sent a _Disconnect_ packet.
 pub fn inform_client_disconnect_to_coordinator(
     client: &mut ClientFlags,
     buffer_packet: Vec<u8>,
@@ -147,6 +157,7 @@ pub fn inform_client_disconnect_to_coordinator(
     }
 }
 
+/// Close the stream with the client.
 fn close_streams(client: &mut ClientFlags) {
     let mut buffer = Vec::new();
     let aux = client.connection.read_to_end(&mut buffer);
@@ -174,6 +185,7 @@ fn close_streams(client: &mut ClientFlags) {
     info!("Closed stream with Coordinator.");
 }
 
+/// Inform the coordinator that a new client has connected.
 fn inform_new_connection(
     client: &mut ClientFlags,
     will_topic: Option<String>,
@@ -232,6 +244,7 @@ fn inform_new_connection(
     }
 }
 
+/// Inform coordinator that the client has changed a subscription.
 fn change_subscription(client: &mut ClientFlags, buffer_packet: Vec<u8>, tipo: Packet) {
     let packet_to_server = PacketThings {
         thread_id: client.id,
@@ -256,6 +269,7 @@ fn change_subscription(client: &mut ClientFlags, buffer_packet: Vec<u8>, tipo: P
     }
 }
 
+/// Check if protocol name is the required for a new connection.
 pub fn verify_protocol_name(buffer: &[u8]) -> Result<(), u8> {
     for i in 0..6 {
         if buffer[i] != MQTT_NAME[i] {
@@ -266,6 +280,7 @@ pub fn verify_protocol_name(buffer: &[u8]) -> Result<(), u8> {
     Ok(())
 }
 
+/// Check if protocol version is the required for a new connection.
 pub fn verify_version_protocol(level: &u8) -> Result<(), u8> {
     if *level == MQTT_VERSION {
         return Ok(());
@@ -273,6 +288,7 @@ pub fn verify_version_protocol(level: &u8) -> Result<(), u8> {
     Err(CONNECTION_PROTOCOL_REJECTED)
 }
 
+/// Send a _Connack_ packet to the client with the connection error code.
 pub fn send_connection_error(client: &mut ClientFlags, result_code: u8) {
     let mut buffer = [0u8; 4];
     buffer[0] = Packet::ConnAck.into();
@@ -290,6 +306,7 @@ pub fn send_connection_error(client: &mut ClientFlags, result_code: u8) {
     }
 }
 
+/// Send _Puback_ packet to the client.
 fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]) {
     let mut buffer = [0u8; 4];
     buffer[0] = Packet::PubAck.into();
@@ -307,6 +324,13 @@ fn send_publication_results(client: &mut ClientFlags, packet_identifier: [u8; 2]
     }
 }
 
+/// Send new _Publish_ packet to the coordinator.
+///
+/// # Errors
+///
+/// Returns Error if:
+/// - Couldn't lock de Sender Channel.
+/// - Couldn't send the message to the coordinator.
 fn make_publication(
     client: &mut ClientFlags,
     mut buffer_packet: Vec<u8>,
@@ -352,6 +376,7 @@ fn remove_from_client_publishes(client: &mut ClientFlags, buffer_packet: Vec<u8>
     }
 }
 
+/// Send _Pingresp_ to the client.
 fn send_pingresp(client: &mut ClientFlags) {
     let buffer = [Packet::PingResp.into(), 0];
 
@@ -365,6 +390,7 @@ fn send_pingresp(client: &mut ClientFlags) {
     }
 }
 
+/// Process _Connection_ packet.
 pub fn make_connection(
     client: &mut ClientFlags,
     buffer_packet: Vec<u8>,
@@ -471,6 +497,7 @@ pub fn make_connection(
     Ok(1)
 }
 
+/// Convert bytes to UTF-8 string.
 pub fn bytes2string(bytes: &[u8]) -> String {
     match std::str::from_utf8(bytes) {
         Ok(str) => str.to_owned(),
@@ -478,6 +505,7 @@ pub fn bytes2string(bytes: &[u8]) -> String {
     }
 }
 
+/// Check if username and password are valid.
 fn user_and_password_correct(user: &str, password: &str) -> bool {
     let file: String = match std::fs::read_to_string("./src/users.txt") {
         Ok(file) => file,
